@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["AnswerToSelect",""],["Authenticator","The TOTP authenticator Trussed® app."],["ChallengingAnswerToSelect",""],["OathVersion",""]]};

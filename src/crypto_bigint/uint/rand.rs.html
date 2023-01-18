@@ -1,0 +1,117 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/crypto-bigint-0.2.11/src/uint/rand.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>rand.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/RustCrypto/meta/master/logo.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><div class="width-limiter"><nav class="sub"><a class="sub-logo-container" href="../../../crypto_bigint/index.html">
+                        <img src="https://raw.githubusercontent.com/RustCrypto/meta/master/logo.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><span id="1">1</span>
+<span id="2">2</span>
+<span id="3">3</span>
+<span id="4">4</span>
+<span id="5">5</span>
+<span id="6">6</span>
+<span id="7">7</span>
+<span id="8">8</span>
+<span id="9">9</span>
+<span id="10">10</span>
+<span id="11">11</span>
+<span id="12">12</span>
+<span id="13">13</span>
+<span id="14">14</span>
+<span id="15">15</span>
+<span id="16">16</span>
+<span id="17">17</span>
+<span id="18">18</span>
+<span id="19">19</span>
+<span id="20">20</span>
+<span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
+<span id="27">27</span>
+<span id="28">28</span>
+<span id="29">29</span>
+<span id="30">30</span>
+<span id="31">31</span>
+<span id="32">32</span>
+<span id="33">33</span>
+<span id="34">34</span>
+<span id="35">35</span>
+<span id="36">36</span>
+<span id="37">37</span>
+<span id="38">38</span>
+<span id="39">39</span>
+<span id="40">40</span>
+<span id="41">41</span>
+<span id="42">42</span>
+<span id="43">43</span>
+<span id="44">44</span>
+<span id="45">45</span>
+<span id="46">46</span>
+<span id="47">47</span>
+<span id="48">48</span>
+<span id="49">49</span>
+<span id="50">50</span>
+<span id="51">51</span>
+<span id="52">52</span>
+<span id="53">53</span>
+<span id="54">54</span>
+<span id="55">55</span>
+<span id="56">56</span>
+<span id="57">57</span>
+</pre><pre class="rust"><code><span class="doccomment">//! Random number generator support
+</span><span class="comment">// TODO(tarcieri): use `Random` and `RandomMod` impls exclusively in next breaking release
+
+</span><span class="kw">use </span><span class="kw">super</span>::UInt;
+<span class="kw">use crate</span>::{Limb, Random, RandomMod};
+<span class="kw">use </span>rand_core::{CryptoRng, RngCore};
+<span class="kw">use </span>subtle::ConstantTimeLess;
+
+<span class="comment">// TODO(tarcieri): replace this `impl` block with `impl Random`/`impl RandomMod`
+</span><span class="attribute">#[cfg_attr(docsrs, doc(cfg(feature = <span class="string">&quot;rand&quot;</span>)))]
+</span><span class="kw">impl</span>&lt;<span class="kw">const </span>LIMBS: usize&gt; UInt&lt;LIMBS&gt; {
+    <span class="doccomment">/// Generate a cryptographically secure random [`UInt`].
+    </span><span class="kw">pub fn </span>random(<span class="kw-2">mut </span>rng: <span class="kw">impl </span>CryptoRng + RngCore) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>limbs = [Limb::default(); LIMBS];
+
+        <span class="kw">for </span>limb <span class="kw">in </span><span class="kw-2">&amp;mut </span>limbs {
+            <span class="kw-2">*</span>limb = Limb::random(<span class="kw-2">&amp;mut </span>rng)
+        }
+
+        limbs.into()
+    }
+
+    <span class="doccomment">/// Generate a cryptographically secure random [`UInt`] which is less than
+    /// a given `modulus`.
+    ///
+    /// This function uses rejection sampling, a method which produces an
+    /// unbiased distribution of in-range values provided the underlying
+    /// [`CryptoRng`] is unbiased, but runs in variable-time.
+    ///
+    /// The variable-time nature of the algorithm should not pose a security
+    /// issue so long as the underlying random number generator is truly a
+    /// [`CryptoRng`], where previous outputs are unrelated to subsequent
+    /// outputs and do not reveal information about the RNG&#39;s internal state.
+    </span><span class="kw">pub fn </span>random_mod(<span class="kw-2">mut </span>rng: <span class="kw">impl </span>CryptoRng + RngCore, modulus: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="self">Self </span>{
+        <span class="kw">loop </span>{
+            <span class="kw">let </span>n = <span class="self">Self</span>::random(<span class="kw-2">&amp;mut </span>rng);
+
+            <span class="kw">if </span>n.ct_lt(modulus).into() {
+                <span class="kw">return </span>n;
+            }
+        }
+    }
+}
+
+<span class="attribute">#[cfg_attr(docsrs, doc(cfg(feature = <span class="string">&quot;rand&quot;</span>)))]
+</span><span class="kw">impl</span>&lt;<span class="kw">const </span>LIMBS: usize&gt; Random <span class="kw">for </span>UInt&lt;LIMBS&gt; {
+    <span class="kw">fn </span>random(rng: <span class="kw">impl </span>CryptoRng + RngCore) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::random(rng)
+    }
+}
+
+<span class="attribute">#[cfg_attr(docsrs, doc(cfg(feature = <span class="string">&quot;rand&quot;</span>)))]
+</span><span class="kw">impl</span>&lt;<span class="kw">const </span>LIMBS: usize&gt; RandomMod <span class="kw">for </span>UInt&lt;LIMBS&gt; {
+    <span class="kw">fn </span>random_mod(rng: <span class="kw">impl </span>CryptoRng + RngCore, modulus: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::random_mod(rng, modulus)
+    }
+}
+</code></pre></div>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="crypto_bigint" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.1 (90743e729 2023-01-10)" ></div></body></html>

@@ -1,0 +1,130 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Minimal and reusable non-blocking I/O layer"><meta name="keywords" content="rust, rustlang, rust-lang, nb"><title>nb - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../normalize.css"><link rel="stylesheet" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../ayu.css" disabled><link rel="stylesheet" href="../dark.css" disabled><link rel="stylesheet" href="../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../storage.js"></script><script defer src="../crates.js"></script><script defer src="../main.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../favicon.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../nb/index.html"><div class="logo-container"><img class="rust-logo" src="../rust-logo.svg" alt="logo"></div></a><h2></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../nb/index.html"><div class="logo-container"><img class="rust-logo" src="../rust-logo.svg" alt="logo"></div></a><h2 class="location"><a href="#">Crate nb</a></h2><div class="sidebar-elems"><ul class="block"><li class="version">Version 1.0.0</li><li><a id="all-types" href="all.html">All Items</a></li></ul><section><ul class="block"><li><a href="#macros">Macros</a></li><li><a href="#enums">Enums</a></li><li><a href="#types">Type Definitions</a></li></ul></section></div></nav><main><div class="width-limiter"><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../wheel.svg"></a></div></form></nav><section id="main-content" class="content"><div class="main-heading"><h1 class="fqn">Crate <a class="mod" href="#">nb</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../clipboard.svg" width="19" height="18" alt="Copy item path"></button></h1><span class="out-of-band"><a class="srclink" href="../src/nb/lib.rs.html#1-267">source</a> · <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span></div><details class="rustdoc-toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Minimal and reusable non-blocking I/O layer</p>
+<p>The ultimate goal of this crate is <em>code reuse</em>. With this crate you can
+write <em>core</em> I/O APIs that can then be adapted to operate in either blocking
+or non-blocking manner. Furthermore those APIs are not tied to a particular
+asynchronous model and can be adapted to work with the <code>futures</code> model or
+with the <code>async</code> / <code>await</code> model.</p>
+<h2 id="core-idea"><a href="#core-idea">Core idea</a></h2>
+<p>The <a href="enum.Error.html"><code>WouldBlock</code></a> error variant signals that the operation
+can’t be completed <em>right now</em> and would need to block to complete.
+<a href="enum.Error.html"><code>WouldBlock</code></a> is a special error in the sense that’s not
+<em>fatal</em>; the operation can still be completed by retrying again later.</p>
+<p><a href="type.Result.html"><code>nb::Result</code></a> is based on the API of
+<a href="https://doc.rust-lang.org/std/io/type.Result.html"><code>std::io::Result</code></a>,
+which has a <code>WouldBlock</code> variant in its
+<a href="https://doc.rust-lang.org/std/io/enum.ErrorKind.html"><code>ErrorKind</code></a>.</p>
+<p>We can map <a href="enum.Error.html"><code>WouldBlock</code></a> to different blocking and
+non-blocking models:</p>
+<ul>
+<li>In blocking mode: <a href="enum.Error.html"><code>WouldBlock</code></a> means try again right
+now (i.e. busy wait)</li>
+<li>In <code>futures</code> mode: <a href="enum.Error.html"><code>WouldBlock</code></a> means
+<a href="https://docs.rs/futures"><code>Async::NotReady</code></a></li>
+<li>In <code>await</code> mode: <a href="enum.Error.html"><code>WouldBlock</code></a> means <code>yield</code>
+(suspend the generator)</li>
+</ul>
+<h2 id="how-to-use-this-crate"><a href="#how-to-use-this-crate">How to use this crate</a></h2>
+<p>Application specific errors can be put inside the <code>Other</code> variant in the
+<a href="enum.Error.html"><code>nb::Error</code></a> enum.</p>
+<p>So in your API instead of returning <code>Result&lt;T, MyError&gt;</code> return
+<code>nb::Result&lt;T, MyError&gt;</code></p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">enum </span>MyError {
+    ThisError,
+    ThatError,
+    <span class="comment">// ..
+</span>}
+
+<span class="comment">// This is a blocking function, so it returns a normal `Result`
+</span><span class="kw">fn </span>before() -&gt; <span class="prelude-ty">Result</span>&lt;(), MyError&gt; {
+    <span class="comment">// ..
+</span>}
+
+<span class="comment">// This is now a potentially (read: *non*) blocking function so it returns `nb::Result`
+// instead of blocking
+</span><span class="kw">fn </span>after() -&gt; nb::Result&lt;(), MyError&gt; {
+    <span class="comment">// ..
+</span>}</code></pre></div>
+<p>You can use <code>Infallible</code> to signal that some API has no fatal
+errors but may block:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>core::convert::Infallible;
+
+<span class="comment">// This returns `Ok(())` or `Err(nb::Error::WouldBlock)`
+</span><span class="kw">fn </span>maybe_blocking_api() -&gt; nb::Result&lt;(), Infallible&gt; {
+    <span class="comment">// ..
+</span>}</code></pre></div>
+<p>Once your API uses <a href="type.Result.html"><code>nb::Result</code></a> you can leverage the <a href="macro.block.html"><code>block!</code></a>, macro
+to adapt it for blocking operation, or handle scheduling yourself.</p>
+<h2 id="examples"><a href="#examples">Examples</a></h2><h3 id="a-core-io-api"><a href="#a-core-io-api">A Core I/O API</a></h3>
+<p>Imagine the code (crate) below represents a Hardware Abstraction Layer for some microcontroller
+(or microcontroller family).</p>
+<p><em>In this and the following examples let’s assume for simplicity that peripherals are treated
+as global singletons and that no preemption is possible (i.e. interrupts are disabled).</em></p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// This is the `hal` crate
+</span><span class="kw">use </span>nb;
+
+<span class="doccomment">/// An LED
+</span><span class="kw">pub struct </span>Led;
+
+<span class="kw">impl </span>Led {
+    <span class="kw">pub fn </span>off(<span class="kw-2">&amp;</span><span class="self">self</span>) {
+        <span class="comment">// ..
+    </span>}
+    <span class="kw">pub fn </span>on(<span class="kw-2">&amp;</span><span class="self">self</span>) {
+        <span class="comment">// ..
+    </span>}
+}
+
+<span class="doccomment">/// Serial interface
+</span><span class="kw">pub struct </span>Serial;
+<span class="kw">pub enum </span>Error {
+    Overrun,
+    <span class="comment">// ..
+</span>}
+
+<span class="kw">impl </span>Serial {
+    <span class="doccomment">/// Reads a single byte from the serial interface
+    </span><span class="kw">pub fn </span>read(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; nb::Result&lt;u8, Error&gt; {
+        <span class="comment">// ..
+    </span>}
+
+    <span class="doccomment">/// Writes a single byte to the serial interface
+    </span><span class="kw">pub fn </span>write(<span class="kw-2">&amp;</span><span class="self">self</span>, byte: u8) -&gt; nb::Result&lt;(), Error&gt; {
+        <span class="comment">// ..
+    </span>}
+}
+
+<span class="doccomment">/// A timer used for timeouts
+</span><span class="kw">pub struct </span>Timer;
+
+<span class="kw">impl </span>Timer {
+    <span class="doccomment">/// Waits until the timer times out
+    </span><span class="kw">pub fn </span>wait(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; nb::Result&lt;(), Infallible&gt; {
+        <span class="comment">//^ NOTE the `Infallible` indicates that this operation can block but has no
+        //  other form of error
+
+        // ..
+    </span>}
+}</code></pre></div>
+<h3 id="blocking-mode"><a href="#blocking-mode">Blocking mode</a></h3>
+<p>Turn on an LED for one second and <em>then</em> loops back serial data.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>core::convert::Infallible;
+<span class="kw">use </span>nb::block;
+
+<span class="kw">use </span>hal::{Led, Serial, Timer};
+
+<span class="comment">// Turn the LED on for one second
+</span>Led.on();
+<span class="macro">block!</span>(Timer.wait())<span class="question-mark">?</span>;
+Led.off();
+
+<span class="comment">// Serial interface loopback
+</span><span class="kw">loop </span>{
+    <span class="kw">let </span>byte = <span class="macro">block!</span>(Serial.read())<span class="question-mark">?</span>;
+    <span class="macro">block!</span>(Serial.write(byte))<span class="question-mark">?</span>;
+}
+</code></pre></div>
+</div></details><h2 id="macros" class="small-section-header"><a href="#macros">Macros</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="macro" href="macro.block.html" title="nb::block macro">block</a></div><div class="item-right docblock-short">Turns the non-blocking expression <code>$e</code> into a blocking operation.</div></div></div><h2 id="enums" class="small-section-header"><a href="#enums">Enums</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="enum" href="enum.Error.html" title="nb::Error enum">Error</a></div><div class="item-right docblock-short">A non-blocking error</div></div></div><h2 id="types" class="small-section-header"><a href="#types">Type Definitions</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="type" href="type.Result.html" title="nb::Result type">Result</a></div><div class="item-right docblock-short">A non-blocking result</div></div></div></section></div></main><div id="rustdoc-vars" data-root-path="../" data-current-crate="nb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.1 (90743e729 2023-01-10)" ></div></body></html>

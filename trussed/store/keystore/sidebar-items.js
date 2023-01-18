@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":[["SERIALIZATION_VERSION",""]],"struct":[["ClientKeystore",""]],"trait":[["Keystore","Trait intended for use by mechanism implementations."]],"type":[["ClientId",""]]};

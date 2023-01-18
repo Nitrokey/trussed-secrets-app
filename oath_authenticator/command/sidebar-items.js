@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":[["Command",""]],"struct":[["Calculate",""],["CalculateAll",""],["Credential",""],["Delete",""],["Register",""],["Select","TODO: change into enum"],["SetPassword",""],["Validate",""],["VerifyCode",""]]};

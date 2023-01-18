@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":[["Error",""]],"struct":[["EncryptedDataContainer","Universal AEAD encrypted data container, using CBOR and Chacha8Poly1305"]],"type":[["Result",""]]};

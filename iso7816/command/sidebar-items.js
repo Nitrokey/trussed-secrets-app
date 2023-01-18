@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":[["FromSliceError",""]],"mod":[["class",""],["instruction",""]],"struct":[["Command",""],["CommandView","Memory-efficient unowned version of [`Command`]"]]};

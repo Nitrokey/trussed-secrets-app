@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":[["Error","This is the error type used by cbor-smol"]],"type":[["Result","This is the Result type used by cbor-smol."]]};

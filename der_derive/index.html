@@ -1,0 +1,41 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Custom derive support for the `der` crate."><meta name="keywords" content="rust, rustlang, rust-lang, der_derive"><title>der_derive - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../normalize.css"><link rel="stylesheet" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../ayu.css" disabled><link rel="stylesheet" href="../dark.css" disabled><link rel="stylesheet" href="../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../storage.js"></script><script defer src="../crates.js"></script><script defer src="../main.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../favicon.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../der_derive/index.html"><div class="logo-container"><img class="rust-logo" src="../rust-logo.svg" alt="logo"></div></a><h2></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../der_derive/index.html"><div class="logo-container"><img class="rust-logo" src="../rust-logo.svg" alt="logo"></div></a><h2 class="location"><a href="#">Crate der_derive</a></h2><div class="sidebar-elems"><ul class="block"><li class="version">Version 0.4.1</li><li><a id="all-types" href="all.html">All Items</a></li></ul><section><ul class="block"><li><a href="#derives">Derive Macros</a></li></ul></section></div></nav><main><div class="width-limiter"><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../wheel.svg"></a></div></form></nav><section id="main-content" class="content"><div class="main-heading"><h1 class="fqn">Crate <a class="mod" href="#">der_derive</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../clipboard.svg" width="19" height="18" alt="Copy item path"></button></h1><span class="out-of-band"><a class="srclink" href="../src/der_derive/lib.rs.html#1-184">source</a> · <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span></div><details class="rustdoc-toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Custom derive support for the <a href="https://docs.rs/der/"><code>der</code></a> crate.</p>
+<p>This crate contains custom derive macros intended to be used in the
+following way:</p>
+<ul>
+<li><a href="derive.Choice.html" title="Choice"><code>Choice</code></a>: map ASN.1 <code>CHOICE</code> to a Rust enum.</li>
+<li><a href="derive.Message.html" title="Message"><code>Message</code></a>: map ASN.1 <code>SEQUENCE</code> to a Rust struct.</li>
+</ul>
+<p>Note that this crate shouldn’t be used directly, but instead accessed
+by using the <code>derive</code> feature of the <code>der</code> crate.</p>
+<h2 id="why-not-serde"><a href="#why-not-serde">Why not <code>serde</code>?</a></h2>
+<p>The <code>der</code> crate is designed to be easily usable in embedded environments,
+including ones where code size comes at a premium.</p>
+<p>This crate (i.e. <code>der_derive</code>) is able to generate code which is
+significantly smaller than <code>serde_derive</code>. This is because the <code>der</code>
+crate has been designed with high-level abstractions which reduce
+code size, including trait object-based encoders which allow encoding
+logic which is duplicated in <code>serde</code> serializers to be implemented in
+a single place in the <code>der</code> crate.</p>
+<p>This is a deliberate tradeoff in terms of performance, flexibility, and
+code size. At least for now, the <code>der</code> crate is optimizing for leveraging
+as many abstractions as it can to minimize code size.</p>
+<h2 id="asn1type---attribute"><a href="#asn1type---attribute"><code>#[asn1(type = &quot;...&quot;)]</code> attribute</a></h2>
+<p>This attribute can be used to specify the ASN.1 type for a particular
+enum variant or struct field.</p>
+<p>It’s presently mandatory for all enum variants, even when using one of the
+ASN.1 types defined by this crate.</p>
+<p>For structs, placing this attribute on a field makes it possible to
+decode/encode types which don’t directly implement the <code>Decode</code>/<code>Encode</code>
+traits but do impl <code>From</code> and <code>TryInto</code> and <code>From</code> for one of the ASN.1 types
+listed below (use the ASN.1 type keywords as the <code>type</code>):</p>
+<ul>
+<li><code>BIT STRING</code>: performs an intermediate conversion to <a href="https://docs.rs/der/latest/der/asn1/struct.BitString.html"><code>der::asn1::BitString</code></a></li>
+<li><code>GeneralizedTime</code>: performs an intermediate conversion to <a href="https://docs.rs/der/latest/der/asn1/struct.GeneralizedTime.html"><code>der::asn1::GeneralizedTime</code></a></li>
+<li><code>OCTET STRING</code>: performs an intermediate conversion to <a href="https://docs.rs/der/latest/der/asn1/struct.OctetString.html"><code>der::asn1::OctetString</code></a></li>
+<li><code>PrintableString</code>: performs an intermediate conversion to <a href="https://docs.rs/der/latest/der/asn1/struct.PrintableString.html"><code>der::asn1::PrintableString</code></a></li>
+<li><code>UTCTime</code>: performs an intermediate conversion to <a href="https://docs.rs/der/latest/der/asn1/struct.UtcTime.html"><code>der::asn1::UtcTime</code></a></li>
+<li><code>UTF8String</code>: performs an intermediate conversion to <a href="https://docs.rs/der/latest/der/asn1/struct.Utf8String.html"><code>der::asn1::Utf8String</code></a></li>
+</ul>
+<p>Note: please open a GitHub Issue if you would like to request support
+for additional ASN.1 types.</p>
+</div></details><h2 id="derives" class="small-section-header"><a href="#derives">Derive Macros</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="derive" href="derive.Choice.html" title="der_derive::Choice derive">Choice</a></div><div class="item-right docblock-short">Derive the <a href="https://docs.rs/der/latest/der/trait.Choice.html"><code>Choice</code></a> trait on an enum.</div></div><div class="item-row"><div class="item-left module-item"><a class="derive" href="derive.Message.html" title="der_derive::Message derive">Message</a></div><div class="item-right docblock-short">Derive the <a href="https://docs.rs/der/latest/der/trait.Message.html"><code>Message</code></a> trait on a struct.</div></div></div></section></div></main><div id="rustdoc-vars" data-root-path="../" data-current-crate="der_derive" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.1 (90743e729 2023-01-10)" ></div></body></html>

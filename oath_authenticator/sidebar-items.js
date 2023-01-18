@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":[["FAILURE_FORCED_DELAY_MILLISECONDS",""],["UP_TIMEOUT_MILLISECONDS","This constant defines timeout for the regular UP confirmation"],["YUBICO_OATH_AID",""],["YUBICO_RID",""]],"mod":[["authenticator",""],["calculate",""],["command",""],["credential",""],["ctaphid",""],["encrypted_container",""],["oath",""],["state",""]]};

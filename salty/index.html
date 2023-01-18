@@ -1,0 +1,94 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Mashup of TweetNaCl with ed25519-dalek aimed towards embedded use cases on microcontrollers."><meta name="keywords" content="rust, rustlang, rust-lang, salty"><title>salty - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../normalize.css"><link rel="stylesheet" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../ayu.css" disabled><link rel="stylesheet" href="../dark.css" disabled><link rel="stylesheet" href="../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../storage.js"></script><script defer src="../crates.js"></script><script defer src="../main.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../favicon.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../salty/index.html"><div class="logo-container"><img class="rust-logo" src="../rust-logo.svg" alt="logo"></div></a><h2></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../salty/index.html"><div class="logo-container"><img class="rust-logo" src="../rust-logo.svg" alt="logo"></div></a><h2 class="location"><a href="#">Crate salty</a></h2><div class="sidebar-elems"><ul class="block"><li class="version">Version 0.2.0</li><li><a id="all-types" href="all.html">All Items</a></li></ul><section><ul class="block"><li><a href="#reexports">Re-exports</a></li><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#traits">Traits</a></li><li><a href="#types">Type Definitions</a></li></ul></section></div></nav><main><div class="width-limiter"><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../wheel.svg"></a></div></form></nav><section id="main-content" class="content"><div class="main-heading"><h1 class="fqn">Crate <a class="mod" href="#">salty</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../clipboard.svg" width="19" height="18" alt="Copy item path"></button></h1><span class="out-of-band"><a class="srclink" href="../src/salty/lib.rs.html#1-201">source</a> · <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span></div><details class="rustdoc-toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Mashup of <a href="https://tweetnacl.cr.yp.to/">TweetNaCl</a> with
+<a href="https://lib.rs/crates/ed25519-dalek">ed25519-dalek</a>
+aimed towards embedded use cases on microcontrollers.</p>
+<p>For more context, see also the <a href="https://book.salty.rs">salty book</a>.</p>
+<p>Originally, this library was a transliteration of the C implementation of
+Ed25519 signatures in TweetNaCl to Rust, “with helpful explanations”.</p>
+<p>Iterating over the not-very-nice API surface of NaCl, we ended up with
+a close relative of the “<a href="https://dalek.rs">dalek</a>” APIs, where things are modeled as,
+for instance, “compressed y-coordinate of an Edwards25519 curve point”,
+instead of raw bytes.</p>
+<p>One reason the current ed25519-dalek library in its current state is not
+ideal for microcontrollers is that it includes ~40kB of pre-computed data
+to speed things up. Moreover, its implementations are optimized for PC.</p>
+<h3 id="usage"><a href="#usage">Usage</a></h3>
+<p>The main entry point of the API is either a keypair, or a public key.</p>
+<p>For keypairs, an external trusted source of entropy is assumed, letting
+us deterministically construct a keypair as:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>seed: [u8; <span class="number">32</span>] = [<span class="number">42</span>; <span class="number">32</span>]; <span class="comment">// 32 actually entropic bytes
+</span><span class="kw">let </span>keypair: salty::Keypair = salty::Keypair::from(<span class="kw-2">&amp;</span>seed);</code></pre></div>
+<p>Any byte slice of data that fits in memory can then be signed
+deterministically via</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>data: <span class="kw-2">&amp;</span>[u8] = <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>]; <span class="comment">// some data
+</span><span class="kw">let </span>signature: salty::Signature = keypair.sign(data);</code></pre></div>
+<p>Thereafter, the signature can be checked:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>public_key: salty::PublicKey = keypair.public;
+<span class="macro">assert!</span>(public_key.verify(data, <span class="kw-2">&amp;</span>signature).is_ok());</code></pre></div>
+<p>For serialization purposes, the entropic seed <em>is</em> the private key (32 bytes).
+Both public keys and signatures have <code>to_bytes()</code> methods, returning 32 and 64
+bytes, respectively.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>serialized_public_key: [u8; <span class="number">32</span>] = public_key.to_bytes();
+<span class="kw">let </span>serialized_signature: [u8; <span class="number">64</span>] = signature.to_bytes();</code></pre></div>
+<p>Conversely, <code>PublicKey</code> implements <code>TryFrom</code> (verifying the alleged point actually
+lies on the curve), and <code>Signature</code> implements <code>From</code>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>core::convert::TryInto;
+<span class="kw">let </span>deserialized_public_key: salty::PublicKey = (<span class="kw-2">&amp;</span>serialized_public_key).try_into().unwrap();
+<span class="kw">let </span>deserialized_signature: salty::Signature = (<span class="kw-2">&amp;</span>serialized_signature).into();
+<span class="macro">assert!</span>(deserialized_public_key.verify(data, <span class="kw-2">&amp;</span>deserialized_signature).is_ok());</code></pre></div>
+<p>Please note that <code>Ed25519</code> signatures are <em>not</em> init-update-finalize signatures,
+since two passes over the data are made, sequentially (the output of the first pass
+is an input to the second pass).
+For cases where the data to be signed does not fit in memory, as explained in
+<a href="https://tools.ietf.org/html/rfc8032/">RFC 8032</a> an alternative algorithm <code>Ed25519ph</code> (“ph” for prehashed) is
+defined. This is <em>not</em> the same as applying Ed25519 signature to the SHA512 hash of
+the data; it is is exposed via <code>Keypair::sign_prehashed</code> and
+<code>PublicKey::verify_prehashed</code>. Additionally, there is the option of using “contexts”
+for both regular and prehashed signatures.</p>
+<h3 id="features"><a href="#features">Features</a></h3>
+<p>The bulk of time generating and verifying signatures is spent with field operations
+in the base field of the underlying elliptic curve. This library has two implementations:
+The <code>tweetnacl</code> implementation is portable but quite slow, and the <code>haase</code> implementation,
+which makes use of the <code>UMAAL</code> assembly instruction, which is only available on
+Cortex-M4 and Cortex-M33 microcontrollers. By default, on these targets the fast implementation
+is selected, the <code>tweetnacl</code> variant can be triggered with the <code>slow-motion</code> feature.</p>
+<p>This <code>UMAAL</code> operation is a mapping <code>(a, b, c, d) ⟼ a*b + c + d</code>, where the inputs are <code>u32</code>
+and the output is a <code>u64</code> (there is no overflow). In the future, we hope to offer a third
+implementation, which would do “schoolbook multiplication”, but using this operation, e.g.
+as a compiler intrinsic. The idea is to have a similarly speedy implementation without the
+obscurity of the generated assembly code of the <code>haase</code> implementation.</p>
+<p>Current numbers on an NXP LPC55S69 running at 96Mhz, with “tweetnacl” implementation:</p>
+<ul>
+<li>signing prehashed message: 52,632,954 cycles</li>
+<li>verifying said message: 100,102,158 cycles</li>
+<li>code size for this: 19,724 bytes</li>
+</ul>
+<p>Obviously, this needed to improve.</p>
+<p>Current numbers on an NXP LPC55S69 running at 96Mhz, with “haase” implementation:</p>
+<ul>
+<li>signing prehashed message: 8,547,161 cycles</li>
+<li>verifying said message: 16,046,465 cycles</li>
+<li>code size: similar</li>
+</ul>
+<p>In both cases, we suggest compiling with at least minimal optimization, to get rid
+of the zero-cost abstractions.</p>
+<h3 id="future"><a href="#future">Future</a></h3>
+<p>Future plans include:</p>
+<ul>
+<li>rigorous correctness checks</li>
+<li>rigorous checks against timing side-channels, using the DWT cycle count of ARM MCUs</li>
+<li>ensure dropped secrets are <code>zeroize</code>d</li>
+<li>add the authenticated encryption part of NaCl</li>
+<li>add X25519, i.e., Diffie-Hellman key agreement</li>
+<li>speedy yet understandable field operations using <code>UMAAL</code></li>
+</ul>
+</div></details><h2 id="reexports" class="small-section-header"><a href="#reexports">Re-exports</a></h2><div class="item-table"><div class="item-row"><div class="item-left import-item" id="reexport.SecretKey"><code>pub use crate::signature::<a class="struct" href="signature/struct.SecretKey.html" title="struct salty::signature::SecretKey">SecretKey</a>;</code></div></div><div class="item-row"><div class="item-left import-item" id="reexport.PublicKey"><code>pub use crate::signature::<a class="struct" href="signature/struct.PublicKey.html" title="struct salty::signature::PublicKey">PublicKey</a>;</code></div></div><div class="item-row"><div class="item-left import-item" id="reexport.Keypair"><code>pub use crate::signature::<a class="struct" href="signature/struct.Keypair.html" title="struct salty::signature::Keypair">Keypair</a>;</code></div></div><div class="item-row"><div class="item-left import-item" id="reexport.Signature"><code>pub use crate::signature::<a class="struct" href="signature/struct.Signature.html" title="struct salty::signature::Signature">Signature</a>;</code></div></div></div><h2 id="modules" class="small-section-header"><a href="#modules">Modules</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="mod" href="agreement/index.html" title="salty::agreement mod">agreement</a></div><div class="item-right docblock-short">99.9% cribbed from x25519-dalek</div></div><div class="item-row"><div class="item-left module-item"><a class="mod" href="constants/index.html" title="salty::constants mod">constants</a></div></div><div class="item-row"><div class="item-left module-item"><a class="mod" href="signature/index.html" title="salty::signature mod">signature</a></div></div></div><h2 id="structs" class="small-section-header"><a href="#structs">Structs</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.CompressedY.html" title="salty::CompressedY struct">CompressedY</a></div><div class="item-right docblock-short">“Compressed” form of a <code>EdwardsPoint</code>, whereby
+the sign of the x-coordinate is stuffed in a
+spare bit of the y-coordinate</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.CosePublicKey.html" title="salty::CosePublicKey struct">CosePublicKey</a></div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.EdwardsPoint.html" title="salty::EdwardsPoint struct">EdwardsPoint</a></div><div class="item-right docblock-short">These represent the (X,Y,Z,T) coordinates</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.FieldElement.html" title="salty::FieldElement struct">FieldElement</a></div><div class="item-right docblock-short">Element of the base field of the elliptic curve</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.MontgomeryPoint.html" title="salty::MontgomeryPoint struct">MontgomeryPoint</a></div><div class="item-right docblock-short">Holds the \(u\)-coordinate of a point on the Montgomery form of
+Curve25519 or its twist.</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.Scalar.html" title="salty::Scalar struct">Scalar</a></div><div class="item-right docblock-short">Since the curve is an abelian group, it has a module
+structure, consisting of these scalars. They are the
+integers modulo “ell”, where “ell” is 2**252 + something something.</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.Sha512.html" title="salty::Sha512 struct">Sha512</a></div><div class="item-right docblock-short">self-contained Sha512 hash, following TweetNaCl</div></div></div><h2 id="enums" class="small-section-header"><a href="#enums">Enums</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="enum" href="enum.Error.html" title="salty::Error enum">Error</a></div><div class="item-right docblock-short">Extensible error type for all <code>salty</code> operations.</div></div></div><h2 id="traits" class="small-section-header"><a href="#traits">Traits</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="trait" href="trait.FieldImplementation.html" title="salty::FieldImplementation trait">FieldImplementation</a></div><div class="item-right docblock-short">Requirements on an implementation of the base field.</div></div></div><h2 id="types" class="small-section-header"><a href="#types">Type Definitions</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="type" href="type.Result.html" title="salty::Result type">Result</a></div><div class="item-right docblock-short">Result type for all <code>salty</code> operations.</div></div></div></section></div></main><div id="rustdoc-vars" data-root-path="../" data-current-crate="salty" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.1 (90743e729 2023-01-10)" ></div></body></html>

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":[["Chain",""],["Interindustry",""],["Range",""],["SecureMessaging",""]],"struct":[["Class",""],["InvalidClass",""]]};
