@@ -18,6 +18,7 @@ pub use command::Command;
 mod credential;
 #[cfg(feature = "ctaphid")]
 mod ctaphid;
+pub mod encryption_key;
 mod oath;
 mod state;
 
