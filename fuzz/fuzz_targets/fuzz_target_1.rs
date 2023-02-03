@@ -35,7 +35,7 @@ fn parse(data: &[u8]) -> Vec<&[u8]> {
 
 fuzz_target!(|data: &[u8]| {
     trussed::virt::with_ram_client("oath", move |client| {
-        let mut oath = oath_authenticator::Authenticator::<_>::new(client);
+        let mut oath = vault::Authenticator::<_>::new(client);
         let mut response = heapless::Vec::<u8, { 3 * 1024 }>::new();
 
         let commands = parse(data);
