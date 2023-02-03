@@ -117,7 +117,7 @@ impl trussed::platform::UserInterface for UserInterface {
 struct Apps<C: Client + TrussedRequirements> {
     fido: fido_authenticator::Authenticator<fido_authenticator::Conforming, C>,
     admin: admin_app::App<C, Reboot>,
-    otp: oath_authenticator::Authenticator<C>,
+    otp: vault::Authenticator<C>,
 }
 
 impl<C: Client + TrussedRequirements + trussed::client::HmacSha1> trussed_usbip::Apps<C, ()>
@@ -133,7 +133,7 @@ impl<C: Client + TrussedRequirements + trussed::client::HmacSha1> trussed_usbip:
             },
         );
         let admin = admin_app::App::new(make_client("admin"), [0; 16], 0);
-        let otp = oath_authenticator::Authenticator::new(make_client("otp"));
+        let otp = vault::Authenticator::new(make_client("otp"));
 
         Self { fido, admin, otp }
     }
