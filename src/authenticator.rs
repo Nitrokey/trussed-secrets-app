@@ -524,6 +524,7 @@ where
     //       06  <- digits
     //       5A D0 A7 CA <- dynamically truncated HMAC
     // 90 00
+    #[allow(dead_code)]
     fn calculate_all<const R: usize>(
         &mut self,
         calculate_all: command::CalculateAll<'_>,
