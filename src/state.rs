@@ -4,8 +4,7 @@ use iso7816::Status;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use crate::encrypted_container;
-use crate::encrypted_container::EncryptedDataContainer;
+use encrypted_container::EncryptedDataContainer;
 use trussed::types::Message;
 use trussed::{
     cbor_deserialize, cbor_serialize_bytes, syscall, try_syscall,

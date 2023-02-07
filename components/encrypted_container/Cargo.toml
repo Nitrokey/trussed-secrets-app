@@ -1,0 +1,22 @@
+[package]
+name = "encrypted_container"
+version = "0.1.0"
+edition = "2021"
+authors = ["Szczepan Zalega <szczepan@nitrokey.com>"]
+repository = "https://github.com/nitrokey/oath-authenticator"
+license = "Apache-2.0 OR MIT"
+description = "Universal AEAD Encrypted Container, using CBOR and Chacha8Poly1305 from Trussed"
+
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+trussed = { version = "0.1" }
+heapless = "0.7"
+heapless-bytes = "0.3"
+serde = { version = "1", default-features = false }
+delog = "0.1.6"
+
+[features]
+# Do not run the actual encryption of the credentials.
+no-encrypted-credentials = []
