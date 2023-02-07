@@ -21,7 +21,7 @@ trussed = { version = "0.1", features = ["clients-3"] }
 
 # ctaphid
 ctaphid-dispatch = { version = "0.1", optional = true }
-usbd-ctaphid = "0.1.0"
+usbd-ctaphid = { version = "0.1.0", optional = true }
 
 [dev-dependencies]
 log = { version = "0.4.14", default-features = false }
