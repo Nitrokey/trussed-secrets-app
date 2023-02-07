@@ -8,7 +8,8 @@ license = "Apache-2.0 OR MIT"
 description = "OATH authenticator Trussed app"
 
 [dependencies]
-apdu-dispatch = { version = "0.1",  optional = true }
+apdu-dispatch = { version = "0.1.2",  optional = true }
+ctaphid-dispatch = { version = "0.1", optional = true }
 delog = "0.1.6"
 flexiber = { version = "0.1.0", features = ["derive", "heapless"] }
 heapless = "0.7"
@@ -19,16 +20,13 @@ iso7816 = "0.1"
 serde = { version = "1", default-features = false }
 trussed = { version = "0.1", features = ["clients-3"] }
 
-# ctaphid
-ctaphid-dispatch = { version = "0.1", optional = true }
-usbd-ctaphid = { git = "https://github.com/trussed-dev/usbd-ctaphid", optional = true}
-
 [dev-dependencies]
 log = { version = "0.4.14", default-features = false }
 pretty_env_logger = "0.4.0"
 
 # below are for running the usbip example
 trussed-usbip = { git = "https://github.com/trussed-dev/pc-usbip-runner", default-features = false, features = ["ctaphid"] }
+usbd-ctaphid = "0.1"
 clap = { version = "3.0.0", features = ["cargo", "derive"] }
 clap-num = "1.0.0"
 delog = { version = "0.1.6", features = ["std-log"] }
@@ -47,7 +45,7 @@ devel-counters = []
 devel-ctaphid-bug = []
 
 # Allow to use application over CTAPHID interface
-ctaphid = ["ctaphid-dispatch", "usbd-ctaphid"]
+ctaphid = ["ctaphid-dispatch"]
 
 # Do not run the actual encryption of the credentials.
 no-encrypted-credentials = []
@@ -69,7 +67,5 @@ required-features = ["ctaphid", "devel"]
 
 [patch.crates-io]
 flexiber = { git = "https://github.com/Nitrokey/flexiber", rev = "0.1.1.nitrokey" }
-apdu-dispatch = { git = "https://github.com/Nitrokey/apdu-dispatch", tag = "v0.1.1-nitrokey-1" }
 littlefs2 = { git = "https://github.com/Nitrokey/littlefs2", tag = "v0.3.2-nitrokey-1" }
 trussed = { git = "https://github.com/Nitrokey/trussed", tag = "v0.1.0-nitrokey-4" }
-usbd-ctaphid = { git = "https://github.com/trussed-dev/usbd-ctaphid"}
