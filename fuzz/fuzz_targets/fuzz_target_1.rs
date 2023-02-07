@@ -3,14 +3,13 @@
 
 use libfuzzer_sys::fuzz_target;
 
-
 fn parse(data: &[u8]) -> Vec<&[u8]> {
     // Parse incoming data into slices from format:
     // Size N (1 bytes)
     // Value (N bytes)
 
-    let mut res = Vec::new();
-    if data.len() < 2 || data.len() > 1024*1024 {
+    let mut res = Vec::with_capacity(100);
+    if data.len() < 2 || data.len() > 1024 * 1024 {
         // Too big or too small data found at this point. Skip it.
         return vec![];
     }
@@ -46,6 +45,5 @@ fuzz_target!(|data: &[u8]| {
                 oath.respond(&command, &mut response).ok();
             }
         }
-
     })
 });
