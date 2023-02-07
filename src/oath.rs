@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 pub const HMAC_MINIMUM_KEY_SIZE: usize = 14;
 
+#[allow(unused)]
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Tag {
