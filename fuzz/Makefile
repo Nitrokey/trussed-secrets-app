@@ -19,6 +19,7 @@ fuzz: corpus
 .PHONY: fuzz-cov
 fuzz-cov:
 	mkdir -p /tmp/coverage
+	-rm ./coverage
 	ln -s /tmp/coverage
 	cargo +nightly fuzz coverage fuzz_target_1 corpus
 	$(MAKE) fuzz-cov-show

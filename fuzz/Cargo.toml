@@ -9,7 +9,7 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-apdu-dispatch = { version = "0.1",  optional = true }
+apdu-dispatch = { version = "0.1.2",  optional = true }
 flexiber = { version = "0.1.0", features = ["derive", "heapless"] }
 heapless = "0.7"
 heapless-bytes = "0.3"
@@ -20,6 +20,10 @@ serde = { version = "1", default-features = false }
 trussed = { version = "0.1.0", features = ["virt", "verbose-tests"] }
 ctaphid-dispatch = { version = "0.1", optional = true }
 usbd-ctaphid = { git = "https://github.com/Nitrokey/nitrokey-3-firmware", optional = true }
+clap = { version = "3.0.0", features = ["cargo", "derive"] }
+clap-num = "1.0.0"
+pretty_env_logger = "0.4.0"
+
 
 [dependencies.oath-authenticator]
 path = ".."
@@ -38,6 +42,12 @@ debug = 1
 [[bin]]
 name = "fuzz_target_1"
 path = "fuzz_targets/fuzz_target_1.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "corpus-viewer"
+path = "corpus-viewer/corpus-viewer.rs"
 test = false
 doc = false
 
