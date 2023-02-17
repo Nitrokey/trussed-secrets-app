@@ -28,6 +28,12 @@ pub enum Command<'l> {
     SetPassword(SetPassword<'l>),
     /// Validate the password (both ways).
     Validate(Validate<'l>),
+    /// Verify PIN through the backend
+    VerifyPin(VerifyPin<'l>),
+    /// Set PIN through the backend
+    SetPin(SetPin<'l>),
+    /// Change PIN through the backend
+    ChangePin(ChangePin<'l>),
     /// Reverse HOTP validation
     VerifyCode(VerifyCode<'l>),
     /// Send remaining data in the buffer
@@ -182,6 +188,83 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for VerifyCode<'l> {
         );
 
         Ok(VerifyCode { label, response })
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SetPin<'l> {
+    pub password: &'l [u8],
+}
+
+impl<'l, const C: usize> TryFrom<&'l Data<C>> for SetPin<'l> {
+    type Error = Status;
+    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
+        use flexiber::TaggedSlice;
+        let mut decoder = flexiber::Decoder::new(data);
+
+        let first: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
+        ensure(
+            first.tag() == (oath::Tag::Password as u8).try_into().unwrap(),
+            FAILED_PARSING_ERROR,
+        )?;
+        let password = first.as_bytes();
+
+        Ok(SetPin { password })
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ChangePin<'l> {
+    pub password: &'l [u8],
+    pub new_password: &'l [u8],
+}
+
+impl<'l, const C: usize> TryFrom<&'l Data<C>> for ChangePin<'l> {
+    type Error = Status;
+    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
+        use flexiber::TaggedSlice;
+        let mut decoder = flexiber::Decoder::new(data);
+
+        let first: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
+        ensure(
+            first.tag() == (oath::Tag::Password as u8).try_into().unwrap(),
+            FAILED_PARSING_ERROR,
+        )?;
+        let password = first.as_bytes();
+
+        let second: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
+        ensure(
+            second.tag() == (oath::Tag::NewPassword as u8).try_into().unwrap(),
+            FAILED_PARSING_ERROR,
+        )?;
+        let new_password = second.as_bytes();
+
+        Ok(ChangePin {
+            password,
+            new_password,
+        })
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct VerifyPin<'l> {
+    pub password: &'l [u8],
+}
+
+impl<'l, const C: usize> TryFrom<&'l Data<C>> for VerifyPin<'l> {
+    type Error = Status;
+    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
+        use flexiber::TaggedSlice;
+        let mut decoder = flexiber::Decoder::new(data);
+
+        let first: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
+        ensure(
+            first.tag() == (oath::Tag::Password as u8).try_into().unwrap(),
+            FAILED_PARSING_ERROR,
+        )?;
+        let password = first.as_bytes();
+
+        Ok(VerifyPin { password })
     }
 }
 
@@ -492,6 +575,15 @@ impl<'l, const C: usize> TryFrom<&'l iso7816::Command<C>> for Command<'l> {
                 }
                 (0x00, oath::Instruction::VerifyCode, 0x00, 0x00) => {
                     Self::VerifyCode(VerifyCode::try_from(data)?)
+                }
+                (0x00, oath::Instruction::VerifyPIN, 0x00, 0x00) => {
+                    Self::VerifyPin(VerifyPin::try_from(data)?)
+                }
+                (0x00, oath::Instruction::ChangePIN, 0x00, 0x00) => {
+                    Self::ChangePin(ChangePin::try_from(data)?)
+                }
+                (0x00, oath::Instruction::SetPIN, 0x00, 0x00) => {
+                    Self::SetPin(SetPin::try_from(data)?)
                 }
                 (0x00, oath::Instruction::SendRemaining, 0x00, 0x00) => Self::SendRemaining,
                 _ => return Err(Status::InstructionNotSupportedOrInvalid),

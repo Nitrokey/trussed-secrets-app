@@ -244,10 +244,18 @@ where
             // Command::CalculateAll(calculate_all) => self.calculate_all(calculate_all, reply),
             Command::Delete(delete) => self.delete(delete),
             Command::Reset => self.reset(),
+            #[cfg(feature = "challenge-response-auth")]
             Command::Validate(validate) => self.validate(validate, reply),
+            #[cfg(feature = "challenge-response-auth")]
             Command::SetPassword(set_password) => self.set_password(set_password),
+            #[cfg(feature = "challenge-response-auth")]
             Command::ClearPassword => self.clear_password(),
             Command::VerifyCode(verify_code) => self.verify_code(verify_code, reply),
+
+            Command::VerifyPin(vpin) => self.verify_pin(vpin, reply),
+            Command::SetPin(spin) => self.set_pin(spin, reply),
+            Command::ChangePin(cpin) => self.change_pin(cpin, reply),
+
             Command::SendRemaining => self.send_remaining(reply),
             _ => Err(Status::ConditionsOfUseNotSatisfied),
         }
@@ -314,6 +322,7 @@ where
         .map_err(|_| Status::NotEnoughMemory)?;
 
         self.state.runtime.reset();
+        self._extension_pin_factory_reset()?;
 
         debug_now!(":: reset over");
         Ok(())
@@ -668,6 +677,7 @@ where
         Ok(())
     }
 
+    #[cfg(feature = "challenge-response-auth")]
     fn validate<const R: usize>(
         &mut self,
         validate: command::Validate<'_>,
@@ -735,6 +745,7 @@ where
         //  challenge: &'l [u8; 8],
     }
 
+    #[cfg(feature = "challenge-response-auth")]
     fn clear_password(&mut self) -> Result {
         self.user_present()?;
 
@@ -756,6 +767,7 @@ where
         Ok(())
     }
 
+    #[cfg(feature = "challenge-response-auth")]
     fn set_password(&mut self, set_password: command::SetPassword<'_>) -> Result {
         self.user_present()?;
 
@@ -999,6 +1011,88 @@ where
             &counter_long.to_be_bytes(),
             credential.secret,
         )
+    }
+
+    fn _extension_pin_factory_reset<'l>(&self) -> Result {
+        // TODO connect to Software Auth
+        // TODO reset set PIN
+        Ok(())
+    }
+
+    fn _extension_check_pin<'l>(&self, password: &'l [u8]) -> Result {
+        // TODO connect to Software Auth
+        Ok(())
+    }
+
+    fn _extension_set_pin<'l>(&self, password: &'l [u8]) -> Result {
+        // TODO connect to Software Auth
+        Ok(())
+    }
+
+    fn _extension_change_pin<'l>(&self, password: &'l [u8], new_password: &'l [u8]) -> Result {
+        // TODO connect to Software Auth
+        Ok(())
+    }
+
+    fn _extension_is_pin_set(&self) -> bool {
+        // TODO connect to Software Auth
+        false
+    }
+
+    fn verify_pin<const R: usize>(
+        &mut self,
+        verify_pin: command::VerifyPin<'_>,
+        _reply: &mut Data<R>,
+    ) -> Result {
+        if !self._extension_is_pin_set() {
+            return Err(Status::SecurityStatusNotSatisfied);
+        }
+
+        let command::VerifyPin { password } = verify_pin;
+        self._extension_check_pin(password)
+            .map_err(|_| Status::VerificationFailed)?;
+
+        self.state.runtime.client_newly_authorized = true;
+        Ok(())
+    }
+
+    fn set_pin<const R: usize>(
+        &mut self,
+        set_pin: command::SetPin<'_>,
+        _reply: &mut Data<R>,
+    ) -> Result {
+        if self._extension_is_pin_set() {
+            return Err(Status::SecurityStatusNotSatisfied);
+        }
+        self.user_present()?;
+
+        let command::SetPin { password } = set_pin;
+        self._extension_set_pin(password)
+            .map_err(|_| Status::VerificationFailed)?;
+
+        self.state.runtime.client_newly_authorized = true;
+        Ok(())
+    }
+
+    fn change_pin<const R: usize>(
+        &mut self,
+        change_pin: command::ChangePin<'_>,
+        _reply: &mut Data<R>,
+    ) -> Result {
+        if !self._extension_is_pin_set() {
+            return Err(Status::SecurityStatusNotSatisfied);
+        }
+        self.user_present()?;
+
+        let command::ChangePin {
+            password,
+            new_password,
+        } = change_pin;
+
+        self._extension_change_pin(password, new_password)
+            .map_err(|_| Status::VerificationFailed)?;
+        self.state.runtime.client_newly_authorized = true;
+        Ok(())
     }
 
     fn user_present(&mut self) -> Result {

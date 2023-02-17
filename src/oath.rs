@@ -21,6 +21,9 @@ pub enum Tag {
     InitialMovingFactor = 0x7a,
     Algorithm = 0x7b,
     Touch = 0x7c,
+    // Extension starting from 0x80
+    Password = 0x80,
+    NewPassword = 0x81,
 }
 
 #[repr(u8)]
@@ -88,6 +91,9 @@ pub enum Instruction {
     SendRemaining = 0xa5,
     // Place extending commands in 0xBx space
     VerifyCode = 0xb1,
+    VerifyPIN = 0xb2,
+    ChangePIN = 0xb3,
+    SetPIN = 0xb4,
 }
 
 impl TryFrom<u8> for Instruction {
@@ -105,6 +111,9 @@ impl TryFrom<u8> for Instruction {
             0xa4 => CalculateAll,
             0xa5 => SendRemaining,
             0xb1 => VerifyCode,
+            0xb2 => VerifyPIN,
+            0xb3 => ChangePIN,
+            0xb4 => SetPIN,
             _ => return Err(Self::Error::InstructionNotSupportedOrInvalid),
         })
     }
