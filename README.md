@@ -1,6 +1,6 @@
-# Nitrokey Vault
+# Nitrokey Secrets
 
-Password Vault and OATH authenticator [Trussed][trussed]<sup>®</sup> app.
+Secrets and OATH authenticator [Trussed][trussed]<sup>®</sup> app.
 
 Implementation of reverse-engineered specification of Yubico's [OATH application][yubico-oath], 
 extended with additional features.
