@@ -45,7 +45,6 @@ use trussed::{cbor_deserialize, cbor_serialize, try_syscall};
 /// # use serde::Serialize;
 /// # use trussed::client::Chacha8Poly1305;
 /// # use trussed::types::{KeyId, Message};
-/// # use oath_authenticator::encrypted_container::EncryptedDataContainer;
 /// fn encrypt_unit<O: Serialize, T: Client + Chacha8Poly1305>(trussed: &mut T, obj: &O, ek: KeyId) -> Message {
 ///    let data = EncryptedDataContainer::from_obj(trussed, obj, None, ek).unwrap();
 ///    let data_serialized: Message = data.try_into().unwrap();
