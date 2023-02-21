@@ -14,7 +14,6 @@ use fido_authenticator::TrussedRequirements;
 use usbd_ctaphid::constants::MESSAGE_SIZE;
 
 pub type FidoConfig = fido_authenticator::Config;
-use trussed::types::KeyId;
 
 /// USP/IP based virtualization of the Nitrokey 3 / Solo2 device.
 #[derive(Parser, Debug)]
