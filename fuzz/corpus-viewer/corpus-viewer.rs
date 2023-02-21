@@ -1,14 +1,19 @@
-#![no_main]
-// #![feature(iter_advance_by)]
+use clap::Parser;
 
-use libfuzzer_sys::fuzz_target;
+#[derive(Parser, Debug)]
+#[clap(about, version, author)]
+struct Args {
+    #[clap(short, long)]
+    file_name: String,
+}
 
+// TODO: extract parse function
 fn parse(data: &[u8]) -> Vec<&[u8]> {
     // Parse incoming data into slices from format:
     // Size N (1 bytes)
     // Value (N bytes)
 
-    let mut res = Vec::with_capacity(100);
+    let mut res = Vec::new();
     if data.len() < 2 || data.len() > 1024 * 1024 {
         // Too big or too small data found at this point. Skip it.
         return vec![];
@@ -33,17 +38,33 @@ fn parse(data: &[u8]) -> Vec<&[u8]> {
     res
 }
 
-fuzz_target!(|data: &[u8]| {
+use std::fs;
+
+fn main() -> Result<(), ()> {
+    pretty_env_logger::init();
+    let args = Args::parse();
+
     trussed::virt::with_ram_client("oath", move |client| {
         let mut oath = oath_authenticator::Authenticator::<_>::new(client);
         let mut response = heapless::Vec::<u8, { 3 * 1024 }>::new();
 
-        let commands = parse(data);
+        // let data = fs::read_to_string(args.file_name).unwrap();
+        let data = fs::read(args.file_name).unwrap();
+
+        let commands = parse(data.as_ref());
         for data in commands {
             if let Ok(command) = iso7816::Command::<{ 10 * 255 }>::try_from(data) {
+                if let Ok(cmd) = oath_authenticator::Command::try_from(&command) {
+                    println!(">>> {:?}", cmd);
+                } else {
+                    println!(">>> (unparsed) {:?}", command);
+                }
+
                 response.clear();
-                oath.respond(&command, &mut response).ok();
+                let res = oath.respond(&command, &mut response);
+                println!("<<< {:?} {:?}", res, response);
             }
         }
-    })
-});
+    });
+    Ok(())
+}
