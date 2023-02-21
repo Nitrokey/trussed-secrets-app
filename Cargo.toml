@@ -26,7 +26,7 @@ log = { version = "0.4.14", default-features = false }
 pretty_env_logger = "0.4.0"
 
 # below are for running the usbip example
-trussed-usbip = { git = "https://github.com/trussed-dev/pc-usbip-runner", default-features = false, features = ["ctaphid"] }
+trussed-usbip = { git = "https://github.com/trussed-dev/pc-usbip-runner", default-features = false, features = ["ctaphid"], rev = "5da7c880a5be8f23599dc561643039ea4eae1ead" }
 usbd-ctaphid = "0.1"
 clap = { version = "3.0.0", features = ["cargo", "derive"] }
 clap-num = "1.0.0"
