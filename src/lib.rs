@@ -10,8 +10,7 @@ extern crate alloc;
 
 pub mod authenticator;
 
-pub use authenticator::Authenticator;
-use trussed::types::Location;
+pub use authenticator::{Authenticator, Options};
 mod calculate;
 mod command;
 pub use command::Command;
@@ -30,11 +29,6 @@ pub const YUBICO_OATH_AID: &[u8] = &hex!("A000000527 2101"); // 01");
 /// This constant defines timeout for the regular UP confirmation
 pub const UP_TIMEOUT_MILLISECONDS: u32 = 15 * 1000;
 pub const FAILURE_FORCED_DELAY_MILLISECONDS: u32 = 1000;
-
-#[cfg(feature = "devel-location-internal")]
-pub const LOCATION: Location = Location::Internal;
-#[cfg(not(feature = "devel-location-internal"))]
-pub const LOCATION: Location = Location::External;
 
 // class AID(bytes, Enum):
 //     OTP = b'\xa0\x00\x00\x05\x27 \x20\x01'
