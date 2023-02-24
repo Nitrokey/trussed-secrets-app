@@ -21,6 +21,9 @@ serde = { version = "1", default-features = false }
 trussed = { version = "0.1", features = ["clients-3"] }
 encrypted_container = { path = "components/encrypted_container" }
 
+# extension
+trussed-auth = { git = "https://github.com/trussed-dev/trussed-auth/", rev = "refs/pull/10/head" }
+
 [dev-dependencies]
 log = { version = "0.4.14", default-features = false }
 pretty_env_logger = "0.4.0"
@@ -33,9 +36,6 @@ clap-num = "1.0.0"
 delog = { version = "0.1.6", features = ["std-log"] }
 fido-authenticator = { version = "0.1", features = ["dispatch", "log-all"] }
 admin-app = { version = "0.1", features = ["log-all"] }
-
-# backend
-trussed-auth = { git = "https://github.com/trussed-dev/trussed-auth/", rev = "refs/pull/10/head" }
 
 [features]
 default = ["apdu-dispatch"]

@@ -2,6 +2,7 @@ use core::convert::TryInto;
 use core::time::Duration;
 
 use flexiber::{Encodable, EncodableHeapless};
+use heapless_bytes::Bytes;
 use iso7816::{Data, Status};
 use trussed::{client, syscall, try_syscall, types::PathBuf};
 
@@ -169,7 +170,8 @@ where
         + client::HmacSha1
         + client::HmacSha256
         + client::Sha256
-        + client::Chacha8Poly1305,
+        + client::Chacha8Poly1305
+        + trussed_auth::AuthClient,
 {
     // const CREDENTIAL_DIRECTORY: &'static str = "cred";
     fn credential_directory() -> PathBuf {
@@ -1046,7 +1048,7 @@ where
     fn _extension_check_pin<'l>(&mut self, password: &'l [u8]) -> Result {
         let reply = syscall!(self
             .trussed
-            .check_pin(BACKEND_USER_PIN_ID, password.clone()));
+            .check_pin(BACKEND_USER_PIN_ID, Bytes::from_slice(password).unwrap()));
         if reply.success {
             return Ok(());
         } else {
@@ -1055,9 +1057,12 @@ where
     }
 
     fn _extension_set_pin<'l>(&mut self, password: &'l [u8]) -> Result {
-        syscall!(self
-            .trussed
-            .set_pin(BACKEND_USER_PIN_ID, password.clone(), None, true));
+        syscall!(self.trussed.set_pin(
+            BACKEND_USER_PIN_ID,
+            Bytes::from_slice(password).unwrap(),
+            None,
+            true
+        ));
         return Ok(());
     }
 
@@ -1067,14 +1072,14 @@ where
         Ok(())
     }
 
-    fn _extension_attempt_counter(&self) -> u8 {
+    fn _extension_attempt_counter(&mut self) -> u8 {
         let reply = syscall!(self.trussed.pin_retries(BACKEND_USER_PIN_ID));
-        reply.retries
+        reply.retries.expect("Counter can be get on pins")
     }
 
-    fn _extension_is_pin_set(&self) -> bool {
+    fn _extension_is_pin_set(&mut self) -> bool {
         let r = syscall!(self.trussed.has_pin(BACKEND_USER_PIN_ID));
-        r.has_pin(BACKEND_USER_PIN_ID)
+        r.has_pin
     }
 
     fn verify_pin<const R: usize>(
@@ -1172,7 +1177,8 @@ where
         + client::HmacSha1
         + client::HmacSha256
         + client::Sha256
-        + client::Chacha8Poly1305,
+        + client::Chacha8Poly1305
+        + trussed_auth::AuthClient,
 {
     fn select(&mut self, apdu: &iso7816::Command<C>, reply: &mut Data<R>) -> Result {
         self.respond(apdu, reply)
