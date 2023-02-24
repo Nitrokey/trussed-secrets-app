@@ -102,6 +102,17 @@ struct AnswerToSelect {
 }
 
 #[derive(Clone, Copy, Encodable, Eq, PartialEq)]
+struct PINAnswerToSelect {
+    #[tlv(simple = "0x79")] // Tag::Version
+    version: OathVersion,
+    #[tlv(simple = "0x71")] // Tag::Name
+    salt: [u8; 8],
+
+    #[tlv(simple = "0x82")] // Tag::PINCounter
+    attempt_counter: [u8; 1],
+}
+
+#[derive(Clone, Copy, Encodable, Eq, PartialEq)]
 struct ChallengingAnswerToSelect {
     #[tlv(simple = "0x79")] // Tag::Version
     version: OathVersion,
@@ -130,6 +141,14 @@ impl AnswerToSelect {
             version: Default::default(),
             salt,
             // challenge: None,
+        }
+    }
+
+    fn with_pin_attempt_counter(self, counter: u8) -> PINAnswerToSelect {
+        PINAnswerToSelect {
+            version: self.version,
+            salt: self.salt,
+            attempt_counter: counter.to_be_bytes(),
         }
     }
 
@@ -280,6 +299,10 @@ where
         let data: heapless::Vec<u8, 128> = if state.password_set() {
             answer_to_select
                 .with_challenge(self.state.runtime.challenge)
+                .to_heapless_vec()
+        } else if self._extension_is_pin_set() {
+            answer_to_select
+                .with_pin_attempt_counter(self._extension_attempt_counter())
                 .to_heapless_vec()
         } else {
             answer_to_select.to_heapless_vec()
@@ -1032,6 +1055,11 @@ where
     fn _extension_change_pin<'l>(&self, password: &'l [u8], new_password: &'l [u8]) -> Result {
         // TODO connect to Software Auth
         Ok(())
+    }
+
+    fn _extension_attempt_counter(&self) -> u8 {
+        // TODO connect to Software Auth
+        7
     }
 
     fn _extension_is_pin_set(&self) -> bool {

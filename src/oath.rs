@@ -24,6 +24,7 @@ pub enum Tag {
     // Extension starting from 0x80
     Password = 0x80,
     NewPassword = 0x81,
+    PINCounter = 0x82,
 }
 
 #[repr(u8)]
