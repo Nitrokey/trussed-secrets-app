@@ -15,7 +15,7 @@ use crate::oath::Kind;
 use crate::{
     command, ensure, oath,
     state::{CommandState, State},
-    Command, BACKEND_USER_PIN_ID,
+    Command, ATTEMPT_COUNTER_DEFAULT_RETRIES, BACKEND_USER_PIN_ID,
 };
 
 /// The options for the authenticator app.
@@ -110,7 +110,7 @@ struct PINAnswerToSelect {
     salt: [u8; 8],
 
     #[tlv(simple = "0x82")] // Tag::PINCounter
-    attempt_counter: [u8; 1],
+    attempt_counter: Option<[u8; 1]>,
 }
 
 #[derive(Clone, Copy, Encodable, Eq, PartialEq)]
@@ -145,11 +145,12 @@ impl AnswerToSelect {
         }
     }
 
-    fn with_pin_attempt_counter(self, counter: u8) -> PINAnswerToSelect {
+    fn with_pin_attempt_counter(self, counter: Option<u8>) -> PINAnswerToSelect {
+        let c = counter.map(u8::to_be_bytes);
         PINAnswerToSelect {
             version: self.version,
             salt: self.salt,
-            attempt_counter: counter.to_be_bytes(),
+            attempt_counter: c,
         }
     }
 
@@ -1063,10 +1064,10 @@ where
         syscall!(self.trussed.set_pin(
             BACKEND_USER_PIN_ID,
             Bytes::from_slice(password).unwrap(),
-            None,
+            Some(ATTEMPT_COUNTER_DEFAULT_RETRIES),
             true
         ));
-        return Ok(());
+        Ok(())
     }
 
     fn _extension_change_pin<'l>(&mut self, password: &'l [u8], new_password: &'l [u8]) -> Result {
@@ -1075,9 +1076,9 @@ where
         Ok(())
     }
 
-    fn _extension_attempt_counter(&mut self) -> u8 {
+    fn _extension_attempt_counter(&mut self) -> Option<u8> {
         let reply = syscall!(self.trussed.pin_retries(BACKEND_USER_PIN_ID));
-        reply.retries.expect("Counter can be get on pins")
+        reply.retries
     }
 
     fn _extension_is_pin_set(&mut self) -> bool {
