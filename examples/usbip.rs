@@ -1,19 +1,139 @@
 /// Taken from: https://github.com/Nitrokey/nitrokey-3-firmware/tree/main/runners/usbip
 use std::path::{Path, PathBuf};
 
+mod dispatch {
+
+    use trussed::{
+        api::{reply, request, Reply, Request},
+        backend::{Backend as _, BackendId},
+        error::Error,
+        platform::Platform,
+        serde_extensions::{ExtensionDispatch, ExtensionId, ExtensionImpl as _},
+        service::ServiceResources,
+        types::{Bytes, Context, Location},
+    };
+    use trussed_auth::{AuthBackend, AuthContext, AuthExtension, MAX_HW_KEY_LEN};
+
+    pub const BACKENDS: &[BackendId<Backend>] =
+        &[BackendId::Custom(Backend::Auth), BackendId::Core];
+
+    pub enum Backend {
+        Auth,
+    }
+
+    pub enum Extension {
+        Auth,
+    }
+
+    impl From<Extension> for u8 {
+        fn from(extension: Extension) -> Self {
+            match extension {
+                Extension::Auth => 0,
+            }
+        }
+    }
+
+    impl TryFrom<u8> for Extension {
+        type Error = Error;
+
+        fn try_from(id: u8) -> Result<Self, Self::Error> {
+            match id {
+                0 => Ok(Extension::Auth),
+                _ => Err(Error::InternalError),
+            }
+        }
+    }
+
+    pub struct Dispatch {
+        auth: AuthBackend,
+    }
+
+    #[derive(Default)]
+    pub struct DispatchContext {
+        auth: AuthContext,
+    }
+
+    impl Dispatch {
+        pub fn new() -> Self {
+            Self {
+                auth: AuthBackend::new(Location::Internal),
+            }
+        }
+
+        pub fn with_hw_key(hw_key: Bytes<MAX_HW_KEY_LEN>) -> Self {
+            Self {
+                auth: AuthBackend::with_hw_key(Location::Internal, hw_key),
+            }
+        }
+    }
+
+    impl ExtensionDispatch for Dispatch {
+        type BackendId = Backend;
+        type Context = DispatchContext;
+        type ExtensionId = Extension;
+
+        fn core_request<P: Platform>(
+            &mut self,
+            backend: &Self::BackendId,
+            ctx: &mut Context<Self::Context>,
+            request: &Request,
+            resources: &mut ServiceResources<P>,
+        ) -> Result<Reply, Error> {
+            match backend {
+                Backend::Auth => {
+                    self.auth
+                        .request(&mut ctx.core, &mut ctx.backends.auth, request, resources)
+                }
+            }
+        }
+
+        fn extension_request<P: Platform>(
+            &mut self,
+            backend: &Self::BackendId,
+            extension: &Self::ExtensionId,
+            ctx: &mut Context<Self::Context>,
+            request: &request::SerdeExtension,
+            resources: &mut ServiceResources<P>,
+        ) -> Result<reply::SerdeExtension, Error> {
+            match backend {
+                Backend::Auth => match extension {
+                    Extension::Auth => self.auth.extension_request_serialized(
+                        &mut ctx.core,
+                        &mut ctx.backends.auth,
+                        request,
+                        resources,
+                    ),
+                },
+            }
+        }
+    }
+
+    impl ExtensionId<AuthExtension> for Dispatch {
+        type Id = Extension;
+
+        const ID: Self::Id = Self::Id::Auth;
+    }
+}
+
 #[cfg(feature = "ccid")]
 use apdu_dispatch::command::SIZE as ApduCommandSize;
 
 use clap::Parser;
 use clap_num::maybe_hex;
 use log::info;
+use trussed::backend::BackendId;
 use trussed::platform::{consent, reboot, ui};
-use trussed::{virt, Client, Platform};
+use trussed::{virt, Client, ClientImplementation, Platform, Service};
+use trussed_usbip::ClientBuilder;
 
 use fido_authenticator::TrussedRequirements;
 use usbd_ctaphid::constants::MESSAGE_SIZE;
 
 pub type FidoConfig = fido_authenticator::Config;
+pub type VirtClient = ClientImplementation<
+    trussed_usbip::Service<virt::Filesystem, dispatch::Dispatch>,
+    dispatch::Dispatch,
+>;
 
 /// USP/IP based virtualization of the Nitrokey 3 / Solo2 device.
 #[derive(Parser, Debug)]
@@ -114,26 +234,33 @@ impl trussed::platform::UserInterface for UserInterface {
     }
 }
 
-struct Apps<C: Client + TrussedRequirements> {
-    fido: fido_authenticator::Authenticator<fido_authenticator::Conforming, C>,
-    admin: admin_app::App<C, Reboot>,
-    otp: oath_authenticator::Authenticator<C>,
+struct Apps {
+    fido: fido_authenticator::Authenticator<fido_authenticator::Conforming, VirtClient>,
+    admin: admin_app::App<VirtClient, Reboot>,
+    otp: oath_authenticator::Authenticator<VirtClient>,
 }
 
-impl<C: Client + TrussedRequirements + trussed::client::HmacSha1> trussed_usbip::Apps<C, ()>
-    for Apps<C>
-{
-    fn new(make_client: impl Fn(&str) -> C, _data: ()) -> Self {
+struct ClientBuilderImpl {}
+
+impl ClientBuilder<VirtClient, dispatch::Dispatch> for ClientBuilderImpl {
+    fn build(&self, id: &str, backends: &'static [BackendId<dispatch::Backend>]) -> VirtClient {
+        todo!()
+    }
+}
+
+impl trussed_usbip::Apps<VirtClient, dispatch::Dispatch> for Apps {
+    type Data = ();
+    fn new<B: ClientBuilder<VirtClient, dispatch::Dispatch>>(builder: &B, _data: ()) -> Self {
         let fido = fido_authenticator::Authenticator::new(
-            make_client("fido"),
+            builder.build("fido", &[BackendId::Core]),
             fido_authenticator::Conforming {},
             fido_authenticator::Config {
                 max_msg_size: MESSAGE_SIZE,
                 skip_up_timeout: None,
             },
         );
-        let admin = admin_app::App::new(make_client("admin"), [0; 16], 0);
-        let otp = oath_authenticator::Authenticator::new(make_client("otp"));
+        let admin = admin_app::App::new(builder.build("admin", &[BackendId::Core]), [0; 16], 0);
+        let otp = oath_authenticator::Authenticator::new(builder.build("otp", dispatch::BACKENDS));
 
         Self { fido, admin, otp }
     }
@@ -169,7 +296,8 @@ fn main() {
     };
 
     log::info!("Initializing Trussed");
-    trussed_usbip::Runner::new(store, options)
+    trussed_usbip::Builder::new(store, options)
+        .dispatch(dispatch::Dispatch::new())
         .init_platform(move |platform| {
             let ui: Box<dyn trussed::platform::UserInterface + Send + Sync> =
                 Box::new(UserInterface::new());
@@ -182,7 +310,8 @@ fn main() {
                 store_file(platform, fido_cert, "fido/x5c/00");
             }
         })
-        .exec::<Apps<_>, _, _>(|_| ());
+        .build::<Apps>()
+        .exec(|_| ());
 }
 
 fn store_file(platform: &impl Platform, host_file: &Path, device_file: &str) {

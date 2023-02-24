@@ -6,6 +6,9 @@ use heapless_bytes::Bytes;
 use iso7816::{Data, Status};
 use trussed::{client, syscall, try_syscall, types::PathBuf};
 
+#[allow(unused)]
+use trussed::types::Location;
+
 use crate::command::VerifyCode;
 use crate::credential::Credential;
 use crate::oath::Kind;
