@@ -3,10 +3,7 @@ use core::time::Duration;
 
 use flexiber::{Encodable, EncodableHeapless};
 use iso7816::{Data, Status};
-use trussed::{
-    client, syscall, try_syscall,
-    types::{Location, PathBuf},
-};
+use trussed::{client, syscall, try_syscall, types::PathBuf};
 
 use crate::command::VerifyCode;
 use crate::credential::Credential;
@@ -14,7 +11,7 @@ use crate::oath::Kind;
 use crate::{
     command, ensure, oath,
     state::{CommandState, State},
-    Command,
+    Command, BACKEND_USER_PIN_ID,
 };
 
 /// The options for the authenticator app.
@@ -196,9 +193,12 @@ where
         command: &iso7816::Command<C>,
         reply: &mut Data<R>,
     ) -> Result {
-        let no_authorization_needed = self
+        #[cfg(feature = "challenge-response-auth")]
+        let no_authorization_needed_cha_resp = self
             .state
             .with_persistent(&mut self.trussed, |_, state| !state.password_set());
+
+        let no_authorization_needed = !self._extension_is_pin_set();
 
         // TODO: abstract out this idea to make it usable for all the PIV security indicators
 
@@ -252,6 +252,9 @@ where
                 Command::Validate(_) => {}
                 Command::Reset => {}
                 Command::VerifyCode(_) => {}
+                Command::VerifyPin(_) => {}
+                // No need to call verify on that, since it requires original PIN anyway
+                Command::ChangePin(_) => {}
                 _ => return Err(Status::ConditionsOfUseNotSatisfied),
             }
         }
@@ -411,7 +414,6 @@ where
         reply: &mut Data<R>,
         file_index: Option<usize>,
     ) -> Result {
-        // TODO check if this one conflicts with send remaining
         if !self.state.runtime.client_authorized {
             return Err(Status::ConditionsOfUseNotSatisfied);
         }
@@ -1036,35 +1038,43 @@ where
         )
     }
 
-    fn _extension_pin_factory_reset<'l>(&self) -> Result {
-        // TODO connect to Software Auth
-        // TODO reset set PIN
+    fn _extension_pin_factory_reset(&mut self) -> Result {
+        syscall!(self.trussed.delete_pin(BACKEND_USER_PIN_ID));
         Ok(())
     }
 
-    fn _extension_check_pin<'l>(&self, password: &'l [u8]) -> Result {
-        // TODO connect to Software Auth
-        Ok(())
+    fn _extension_check_pin<'l>(&mut self, password: &'l [u8]) -> Result {
+        let reply = syscall!(self
+            .trussed
+            .check_pin(BACKEND_USER_PIN_ID, password.clone()));
+        if reply.success {
+            return Ok(());
+        } else {
+            return Err(Status::SecurityStatusNotSatisfied);
+        }
     }
 
-    fn _extension_set_pin<'l>(&self, password: &'l [u8]) -> Result {
-        // TODO connect to Software Auth
-        Ok(())
+    fn _extension_set_pin<'l>(&mut self, password: &'l [u8]) -> Result {
+        syscall!(self
+            .trussed
+            .set_pin(BACKEND_USER_PIN_ID, password.clone(), None, true));
+        return Ok(());
     }
 
-    fn _extension_change_pin<'l>(&self, password: &'l [u8], new_password: &'l [u8]) -> Result {
-        // TODO connect to Software Auth
+    fn _extension_change_pin<'l>(&mut self, password: &'l [u8], new_password: &'l [u8]) -> Result {
+        self._extension_check_pin(password)?;
+        self._extension_set_pin(new_password)?;
         Ok(())
     }
 
     fn _extension_attempt_counter(&self) -> u8 {
-        // TODO connect to Software Auth
-        7
+        let reply = syscall!(self.trussed.pin_retries(BACKEND_USER_PIN_ID));
+        reply.retries
     }
 
     fn _extension_is_pin_set(&self) -> bool {
-        // TODO connect to Software Auth
-        false
+        let r = syscall!(self.trussed.has_pin(BACKEND_USER_PIN_ID));
+        r.has_pin(BACKEND_USER_PIN_ID)
     }
 
     fn verify_pin<const R: usize>(
