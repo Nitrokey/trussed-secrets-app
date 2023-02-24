@@ -22,7 +22,7 @@ trussed = { version = "0.1", features = ["clients-3"] }
 encrypted_container = { path = "components/encrypted_container" }
 
 # extension
-trussed-auth = { git = "https://github.com/trussed-dev/trussed-auth/", rev = "refs/pull/10/head" }
+trussed-auth = { git = "https://github.com/trussed-dev/trussed-auth/", rev = "5962c7526d2a1f8c339dfdb14324ab44d55738f7" }
 
 [dev-dependencies]
 log = { version = "0.4.14", default-features = false }
@@ -70,8 +70,5 @@ required-features = ["ctaphid", "devel"]
 
 [patch.crates-io]
 flexiber = { git = "https://github.com/Nitrokey/flexiber", rev = "0.1.1.nitrokey" }
-#littlefs2 = { git = "https://github.com/Nitrokey/littlefs2", tag = "v0.3.2-nitrokey-1" }
 littlefs2 = { git =  "https://github.com/Nitrokey/littlefs2", tag = "v0.3.2-nitrokey-2" }
-#trussed = { git = "https://github.com/Nitrokey/trussed", tag = "v0.1.0-nitrokey-4" }
-#trussed = { git = "https://github.com/trussed-dev/trussed/", rev = "refs/pull/102/head" }
 trussed = { git = "https://github.com/Nitrokey/trussed.git", tag = "v0.1.0-nitrokey-5" }
