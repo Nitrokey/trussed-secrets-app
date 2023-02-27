@@ -155,6 +155,7 @@ impl AnswerToSelect {
     /// This challenge is only added when a password is set on the device.
     ///
     /// It is rotated each time SELECT is called.
+    #[cfg(feature = "challenge-response-auth")]
     fn with_challenge(self, challenge: [u8; 8]) -> ChallengingAnswerToSelect {
         ChallengingAnswerToSelect {
             version: self.version,
@@ -253,6 +254,7 @@ where
         if !self.state.runtime.client_authorized {
             match command {
                 Command::Select(_) => {}
+                #[cfg(feature = "challenge-response-auth")]
                 Command::Validate(_) => {}
                 Command::Reset => {}
                 Command::VerifyCode(_) => {}
