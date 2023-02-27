@@ -120,7 +120,7 @@ use apdu_dispatch::command::SIZE as ApduCommandSize;
 
 use clap::Parser;
 use clap_num::maybe_hex;
-use log::info;
+use log::{debug, info};
 use trussed::backend::BackendId;
 use trussed::platform::{consent, reboot, ui};
 use trussed::{virt, ClientImplementation, Platform};
@@ -214,7 +214,7 @@ impl trussed::platform::UserInterface for UserInterface {
     }
 
     fn set_status(&mut self, status: ui::Status) {
-        info!("Set status: {:?}", status);
+        debug!("Set status: {:?}", status);
 
         if status == ui::Status::WaitingForUserPresence {
             info!(">>>> Received confirmation request. Confirming automatically.");
