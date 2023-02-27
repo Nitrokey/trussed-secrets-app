@@ -34,13 +34,12 @@ pub struct Persistent {
     pub salt: [u8; 8],
     /// This is the user's password, passed through PBKDF-HMAC-SHA1.
     /// It is used for authorization using challenge HMAC-SHA1'ing.
+    #[cfg(feature = "challenge-response-auth")]
     pub authorization_key: Option<KeyId>,
-    encryption_key: Option<KeyId>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Runtime {
-    /// Not actually used - need to figure out "many credentials" case
     pub previously: Option<CommandState>,
     /// This gets rotated regularly, so someone sniffing on the bus can't replay.
     /// There is a small window between a legitimate client authenticating,
@@ -64,29 +63,7 @@ impl Runtime {
     }
 }
 
-impl Persistent {
-    pub fn password_set(&self) -> bool {
-        self.authorization_key.is_some()
-    }
-
-    fn get_or_generate_encryption_key<T>(
-        &mut self,
-        trussed: &mut T,
-        location: Location,
-    ) -> trussed::error::Result<KeyId>
-    where
-        T: trussed::Client + trussed::client::Chacha8Poly1305,
-    {
-        Ok(match self.encryption_key {
-            None => {
-                let r = try_syscall!(trussed.generate_chacha8poly1305_key(location))?.key;
-                self.encryption_key = Some(r);
-                r
-            }
-            Some(k) => k,
-        })
-    }
-}
+impl Persistent {}
 
 impl State {
     const FILENAME: &'static str = "state.bin";
@@ -238,11 +215,7 @@ impl State {
                     .as_ref()
                     .try_into()
                     .unwrap();
-                Persistent {
-                    salt,
-                    authorization_key: None,
-                    encryption_key: None,
-                }
+                Persistent { salt }
             })
     }
 }
