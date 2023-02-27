@@ -53,6 +53,9 @@ pub struct Runtime {
     /// For book-keeping purposes, set client_authorized / prevents it from being cleared before
     /// returning control to caller of the app
     pub client_newly_authorized: bool,
+
+    /// Cache
+    pub encryption_key: Option<KeyId>,
 }
 
 impl Runtime {
@@ -110,8 +113,8 @@ impl State {
         O: Serialize,
     {
         let encryption_key = self
-            .get_encryption_key_from_state(trussed)
-            .map_err(|_| iso7816::Status::UnspecifiedPersistentExecutionError)?;
+            .get_encryption_key_from_state()
+            .map_err(|_| iso7816::Status::SecurityStatusNotSatisfied)?;
         let data = EncryptedDataContainer::from_obj(trussed, obj, None, encryption_key)
             .map_err(|_| Status::UnspecifiedPersistentExecutionError)?;
         let data_serialized: Message = data
@@ -127,22 +130,12 @@ impl State {
         Ok(())
     }
 
-    fn get_encryption_key_from_state<T>(&mut self, trussed: &mut T) -> trussed::error::Result<KeyId>
-    where
-        T: trussed::Client + trussed::client::Chacha8Poly1305,
-    {
-        // Try to read it
-        let maybe_encryption_key = self.with_persistent(trussed, |_, state| state.encryption_key);
-
-        // Generate encryption key
-        let location = self.location;
-        let encryption_key = match maybe_encryption_key {
-            Some(e) => e,
-            None => self.try_with_persistent_mut(trussed, |trussed, state| {
-                state.get_or_generate_encryption_key(trussed, location)
-            })?,
-        };
-        Ok(encryption_key)
+    fn get_encryption_key_from_state(&mut self) -> trussed::error::Result<KeyId> {
+        // Try to read cached field (should not be empty if unlocked)
+        if self.runtime.encryption_key.is_none() {
+            error_now!("No encryption key set in the cache");
+        }
+        self.runtime.encryption_key.ok_or(trussed::Error::NoSuchKey)
     }
 
     pub fn decrypt_content<T, O>(
@@ -155,7 +148,7 @@ impl State {
         O: DeserializeOwned,
     {
         let encryption_key = self
-            .get_encryption_key_from_state(trussed)
+            .get_encryption_key_from_state()
             .map_err(|_| encrypted_container::Error::FailedDecryption)?;
 
         EncryptedDataContainer::decrypt_from_bytes(trussed, ser_encrypted, encryption_key)

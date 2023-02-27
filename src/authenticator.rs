@@ -4,6 +4,7 @@ use core::time::Duration;
 use flexiber::{Encodable, EncodableHeapless};
 use heapless_bytes::Bytes;
 use iso7816::{Data, Status};
+use trussed::types::KeyId;
 use trussed::{client, syscall, try_syscall, types::PathBuf};
 
 #[allow(unused)]
@@ -1085,6 +1086,17 @@ where
         reply?.retries
     }
 
+    fn _extension_get_key_for_pin(&mut self, password: &[u8]) -> Result<KeyId> {
+        let reply = try_syscall!(self.trussed.get_pin_key(
+            BACKEND_USER_PIN_ID,
+            Bytes::from_slice(password).map_err(|_| iso7816::Status::IncorrectDataParameter)?
+        ))
+        .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
+        reply
+            .result
+            .ok_or(iso7816::Status::SecurityStatusNotSatisfied)
+    }
+
     fn _extension_is_pin_set(&mut self) -> bool {
         let r = try_syscall!(self.trussed.has_pin(BACKEND_USER_PIN_ID)).ok();
         if let Some(x) = r {
@@ -1103,9 +1115,13 @@ where
             return Err(Status::SecurityStatusNotSatisfied);
         }
 
+        self.state.runtime.encryption_key = None;
+
         let command::VerifyPin { password } = verify_pin;
         self._extension_check_pin(password)
             .map_err(|_| Status::VerificationFailed)?;
+
+        self.state.runtime.encryption_key = Some(self._extension_get_key_for_pin(password)?);
 
         self.state.runtime.client_newly_authorized = true;
         Ok(())
