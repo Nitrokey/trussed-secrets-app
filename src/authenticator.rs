@@ -305,7 +305,7 @@ where
             .with_persistent(&mut self.trussed, |_, state| state.clone());
         let answer_to_select = AnswerToSelect::new(state.salt);
 
-        let data: heapless::Vec<u8, 128> = if state.password_set() {
+        let data: heapless::Vec<u8, 128> = if self._extension_is_pin_set() {
             answer_to_select
                 .with_challenge(self.state.runtime.challenge)
                 .to_heapless_vec()
