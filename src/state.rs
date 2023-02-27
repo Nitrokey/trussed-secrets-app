@@ -237,9 +237,9 @@ impl State {
         // TODO DESIGN discuss, should failed deserialization be reacted on differently
         // TODO handle error from getting the random bytes
         try_syscall!(trussed.read_file(self.location, PathBuf::from(Self::FILENAME)))
-            .map(|response| cbor_deserialize(&response.data))
-            .map(|r| r.unwrap())
-            .unwrap_or_else(|_| {
+            .ok()
+            .and_then(|response| cbor_deserialize(&response.data).ok())
+            .unwrap_or_else(|| {
                 let salt: [u8; 8] = syscall!(trussed.random_bytes(8))
                     .bytes
                     .as_ref()
