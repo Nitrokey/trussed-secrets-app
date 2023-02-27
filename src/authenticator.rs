@@ -107,8 +107,6 @@ struct AnswerToSelect {
 struct PINAnswerToSelect {
     #[tlv(simple = "0x79")] // Tag::Version
     version: OathVersion,
-    #[tlv(simple = "0x71")] // Tag::Name
-    salt: [u8; 8],
 
     #[tlv(simple = "0x82")] // Tag::PINCounter
     attempt_counter: Option<[u8; 1]>,
@@ -150,7 +148,6 @@ impl AnswerToSelect {
         let c = counter.map(u8::to_be_bytes);
         PINAnswerToSelect {
             version: self.version,
-            salt: self.salt,
             attempt_counter: c,
         }
     }
@@ -307,10 +304,6 @@ where
         let answer_to_select = AnswerToSelect::new(state.salt);
 
         let data: heapless::Vec<u8, 128> = if self._extension_is_pin_set() {
-            answer_to_select
-                .with_challenge(self.state.runtime.challenge)
-                .to_heapless_vec()
-        } else if self._extension_is_pin_set() {
             answer_to_select
                 .with_pin_attempt_counter(self._extension_attempt_counter())
                 .to_heapless_vec()
