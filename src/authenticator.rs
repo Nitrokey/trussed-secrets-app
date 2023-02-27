@@ -440,7 +440,7 @@ where
                 Self::credential_directory(),
                 None
             ))
-            .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?
+            .map_err(|_| iso7816::Status::KeyReferenceNotFound)?
             .data;
 
             // Rewind if needed, otherwise return first file's content
@@ -448,10 +448,10 @@ where
                 if file_index > 0 {
                     for _ in 0..file_index - 1 {
                         try_syscall!(self.trussed.read_dir_files_next())
-                            .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
+                            .map_err(|_| iso7816::Status::KeyReferenceNotFound)?;
                     }
                     try_syscall!(self.trussed.read_dir_files_next())
-                        .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?
+                        .map_err(|_| iso7816::Status::KeyReferenceNotFound)?
                         .data
                 } else {
                     first_file
@@ -1053,10 +1053,9 @@ where
     fn _extension_check_pin(&mut self, password: &[u8]) -> Result {
         let reply = try_syscall!(self.trussed.check_pin(
             BACKEND_USER_PIN_ID,
-            Bytes::from_slice(password)
-                .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?
+            Bytes::from_slice(password).map_err(|_| iso7816::Status::IncorrectDataParameter)?
         ))
-        .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
+        .map_err(|_| iso7816::Status::SecurityStatusNotSatisfied)?;
         if !(reply.success) {
             Err(Status::SecurityStatusNotSatisfied)
         } else {
@@ -1067,8 +1066,7 @@ where
     fn _extension_set_pin(&mut self, password: &[u8]) -> Result {
         try_syscall!(self.trussed.set_pin(
             BACKEND_USER_PIN_ID,
-            Bytes::from_slice(password)
-                .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?,
+            Bytes::from_slice(password).map_err(|_| iso7816::Status::IncorrectDataParameter)?,
             Some(ATTEMPT_COUNTER_DEFAULT_RETRIES),
             true
         ))
