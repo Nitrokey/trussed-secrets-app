@@ -1046,7 +1046,7 @@ where
     }
 
     fn _extension_pin_factory_reset(&mut self) -> Result {
-        try_syscall!(self.trussed.delete_pin(BACKEND_USER_PIN_ID))
+        try_syscall!(self.trussed.delete_all_pins())
             .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
         Ok(())
     }
