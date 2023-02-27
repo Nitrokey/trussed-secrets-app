@@ -123,10 +123,9 @@ use clap_num::maybe_hex;
 use log::info;
 use trussed::backend::BackendId;
 use trussed::platform::{consent, reboot, ui};
-use trussed::{virt, Client, ClientImplementation, Platform, Service};
+use trussed::{virt, ClientImplementation, Platform};
 use trussed_usbip::ClientBuilder;
 
-use fido_authenticator::TrussedRequirements;
 use usbd_ctaphid::constants::MESSAGE_SIZE;
 
 pub type FidoConfig = fido_authenticator::Config;
@@ -243,7 +242,7 @@ struct Apps {
 struct ClientBuilderImpl {}
 
 impl ClientBuilder<VirtClient, dispatch::Dispatch> for ClientBuilderImpl {
-    fn build(&self, id: &str, backends: &'static [BackendId<dispatch::Backend>]) -> VirtClient {
+    fn build(&self, _id: &str, _backends: &'static [BackendId<dispatch::Backend>]) -> VirtClient {
         todo!()
     }
 }
