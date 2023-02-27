@@ -70,5 +70,4 @@ required-features = ["ctaphid", "devel"]
 
 [patch.crates-io]
 flexiber = { git = "https://github.com/Nitrokey/flexiber", rev = "0.1.1.nitrokey" }
-littlefs2 = { git =  "https://github.com/Nitrokey/littlefs2", tag = "v0.3.2-nitrokey-2" }
-trussed = { git = "https://github.com/Nitrokey/trussed.git", tag = "v0.1.0-nitrokey-5" }
+trussed = { git = "https://github.com/trussed-dev/trussed/", rev = "refs/pull/102/head" }
