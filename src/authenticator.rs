@@ -378,7 +378,7 @@ where
 
         let label = &delete.label;
         if let Some(credential) = self.load_credential(label) {
-            let _deletion_result_secret = syscall!(self.trussed.delete(credential.secret)).success;
+            let _deletion_result_secret = try_syscall!(self.trussed.delete(credential.secret));
             debug_now!(
                 "Deleted secret {:?}, result: {:?}",
                 credential.secret,
@@ -1045,28 +1045,34 @@ where
     }
 
     fn _extension_pin_factory_reset(&mut self) -> Result {
-        syscall!(self.trussed.delete_pin(BACKEND_USER_PIN_ID));
+        try_syscall!(self.trussed.delete_pin(BACKEND_USER_PIN_ID))
+            .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
         Ok(())
     }
 
-    fn _extension_check_pin<'l>(&mut self, password: &'l [u8]) -> Result {
-        let reply = syscall!(self
-            .trussed
-            .check_pin(BACKEND_USER_PIN_ID, Bytes::from_slice(password).unwrap()));
-        if reply.success {
-            return Ok(());
+    fn _extension_check_pin(&mut self, password: &[u8]) -> Result {
+        let reply = try_syscall!(self.trussed.check_pin(
+            BACKEND_USER_PIN_ID,
+            Bytes::from_slice(password)
+                .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?
+        ))
+        .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
+        if !(reply.success) {
+            Err(Status::SecurityStatusNotSatisfied)
         } else {
-            return Err(Status::SecurityStatusNotSatisfied);
+            Ok(())
         }
     }
 
-    fn _extension_set_pin<'l>(&mut self, password: &'l [u8]) -> Result {
-        syscall!(self.trussed.set_pin(
+    fn _extension_set_pin(&mut self, password: &[u8]) -> Result {
+        try_syscall!(self.trussed.set_pin(
             BACKEND_USER_PIN_ID,
-            Bytes::from_slice(password).unwrap(),
+            Bytes::from_slice(password)
+                .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?,
             Some(ATTEMPT_COUNTER_DEFAULT_RETRIES),
             true
-        ));
+        ))
+        .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
         Ok(())
     }
 
@@ -1077,13 +1083,17 @@ where
     }
 
     fn _extension_attempt_counter(&mut self) -> Option<u8> {
-        let reply = syscall!(self.trussed.pin_retries(BACKEND_USER_PIN_ID));
-        reply.retries
+        let reply = try_syscall!(self.trussed.pin_retries(BACKEND_USER_PIN_ID)).ok();
+        reply?.retries
     }
 
     fn _extension_is_pin_set(&mut self) -> bool {
-        let r = syscall!(self.trussed.has_pin(BACKEND_USER_PIN_ID));
-        r.has_pin
+        let r = try_syscall!(self.trussed.has_pin(BACKEND_USER_PIN_ID)).ok();
+        if let Some(x) = r {
+            x.has_pin
+        } else {
+            false
+        }
     }
 
     fn verify_pin<const R: usize>(
