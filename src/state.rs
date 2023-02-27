@@ -148,35 +148,6 @@ impl State {
             .map_err(|e| e.into())
     }
 
-    pub fn try_with_persistent_mut<T, X>(
-        &mut self,
-        trussed: &mut T,
-        f: impl FnOnce(&mut T, &mut Persistent) -> Result<X, trussed::error::Error>,
-    ) -> Result<X, trussed::error::Error>
-    where
-        T: trussed::Client + trussed::client::Chacha8Poly1305,
-    {
-        let mut state = self.get_persistent_or_default(trussed);
-
-        #[cfg(feature = "devel-counters")]
-        {
-            self.counter_read_write += 1;
-            debug_now!("Getting the state RW {}", self.counter_read_write);
-        }
-        // 2. Let the app read or modify the state
-        let x = f(trussed, &mut state);
-
-        // 3. Always write it back
-        try_syscall!(trussed.write_file(
-            self.location,
-            PathBuf::from(Self::FILENAME),
-            cbor_serialize_bytes(&state).unwrap(),
-            None,
-        ))?;
-
-        x
-    }
-
     pub fn with_persistent<T, X>(
         &mut self,
         trussed: &mut T,
