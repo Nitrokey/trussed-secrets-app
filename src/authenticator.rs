@@ -1040,10 +1040,16 @@ where
         )
     }
 
-    fn _extension_pin_factory_reset(&mut self) -> Result {
+    pub fn _extension_logout(&mut self) -> Result {
         if let Some(key) = self.state.runtime.encryption_key.take() {
-            syscall!(self.trussed.delete(key));
+            try_syscall!(self.trussed.delete(key))
+                .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
         }
+        Ok(())
+    }
+
+    fn _extension_pin_factory_reset(&mut self) -> Result {
+        self._extension_logout()?;
 
         try_syscall!(self.trussed.delete_all_pins())
             .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
@@ -1112,9 +1118,7 @@ where
             return Err(Status::SecurityStatusNotSatisfied);
         }
 
-        if let Some(key) = self.state.runtime.encryption_key.take() {
-            syscall!(self.trussed.delete(key));
-        }
+        self._extension_logout()?;
 
         let command::VerifyPin { password } = verify_pin;
         // Returns error, if the PIN is not set, or incorrect. Otherwise returns the KeyId
