@@ -203,15 +203,11 @@ where
             .state
             .with_persistent(&mut self.trussed, |_, state| !state.password_set());
 
-        let no_authorization_needed = !self._extension_is_pin_set();
 
         // TODO: abstract out this idea to make it usable for all the PIV security indicators
 
         let client_authorized_before = self.state.runtime.client_authorized;
         self.state.runtime.client_newly_authorized = false;
-        if no_authorization_needed {
-            self.state.runtime.client_authorized = true;
-        }
 
         // debug_now!("inner respond, client_authorized {}", self.state.runtime.client_authorized);
         let result = self.inner_respond(command, reply);
@@ -258,7 +254,11 @@ where
                 Command::Validate(_) => {}
                 Command::Reset => {}
                 Command::VerifyCode(_) => {}
+                // Can't make session without a PIN
+                Command::SetPin(_) => {}
                 Command::VerifyPin(_) => {}
+                // Protocol command for download the rest of the result
+                Command::SendRemaining => {}
                 // No need to call verify on that, since it requires original PIN anyway
                 Command::ChangePin(_) => {}
                 _ => return Err(Status::ConditionsOfUseNotSatisfied),
@@ -416,7 +416,7 @@ where
         reply: &mut Data<R>,
         file_index: Option<usize>,
     ) -> Result {
-        if !self.state.runtime.client_authorized {
+        if !self.state.runtime.client_authorized && self.state.runtime.previously.is_none() {
             return Err(Status::ConditionsOfUseNotSatisfied);
         }
         // info_now!("recv ListCredentials");
