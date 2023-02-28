@@ -203,7 +203,6 @@ where
             .state
             .with_persistent(&mut self.trussed, |_, state| !state.password_set());
 
-
         // TODO: abstract out this idea to make it usable for all the PIV security indicators
 
         let client_authorized_before = self.state.runtime.client_authorized;
@@ -253,11 +252,13 @@ where
                 #[cfg(feature = "challenge-response-auth")]
                 Command::Validate(_) => {}
                 Command::Reset => {}
+                // Always allow HOTP code verification
                 Command::VerifyCode(_) => {}
-                // Can't make session without a PIN
+                // Always allow to set PIN
                 Command::SetPin(_) => {}
+                // Always allow to verify PIN
                 Command::VerifyPin(_) => {}
-                // Protocol command for download the rest of the result
+                // Protocol command to download the rest of the result
                 Command::SendRemaining => {}
                 // No need to call verify on that, since it requires original PIN anyway
                 Command::ChangePin(_) => {}
