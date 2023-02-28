@@ -349,8 +349,8 @@ where
             .remove_dir_all(self.options.location, PathBuf::new()))
         .map_err(|_| Status::NotEnoughMemory)?;
 
-        self.state.runtime.reset();
         self._extension_pin_factory_reset()?;
+        self.state.runtime.reset();
 
         debug_now!(":: reset over");
         Ok(())
@@ -1041,6 +1041,10 @@ where
     }
 
     fn _extension_pin_factory_reset(&mut self) -> Result {
+        if let Some(key) = self.state.runtime.encryption_key.take() {
+            syscall!(self.trussed.delete(key));
+        }
+
         try_syscall!(self.trussed.delete_all_pins())
             .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
         Ok(())
@@ -1087,9 +1091,7 @@ where
             Bytes::from_slice(password).map_err(|_| iso7816::Status::IncorrectDataParameter)?
         ))
         .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
-        reply
-            .result
-            .ok_or(iso7816::Status::SecurityStatusNotSatisfied)
+        reply.result.ok_or(iso7816::Status::VerificationFailed)
     }
 
     fn _extension_is_pin_set(&mut self) -> bool {
@@ -1110,12 +1112,12 @@ where
             return Err(Status::SecurityStatusNotSatisfied);
         }
 
-        self.state.runtime.encryption_key = None;
+        if let Some(key) = self.state.runtime.encryption_key.take() {
+            syscall!(self.trussed.delete(key));
+        }
 
         let command::VerifyPin { password } = verify_pin;
-        self._extension_check_pin(password)
-            .map_err(|_| Status::VerificationFailed)?;
-
+        // Returns error, if the PIN is not set, or incorrect. Otherwise returns the KeyId
         self.state.runtime.encryption_key = Some(self._extension_get_key_for_pin(password)?);
 
         self.state.runtime.client_newly_authorized = true;
