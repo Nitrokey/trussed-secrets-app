@@ -270,7 +270,8 @@ where
             Command::ListCredentials => self.list_credentials(reply, None),
             Command::Register(register) => self.register(register),
             Command::Calculate(calculate) => self.calculate(calculate, reply),
-            // Command::CalculateAll(calculate_all) => self.calculate_all(calculate_all, reply),
+            #[cfg(feature = "calculate-all")]
+            Command::CalculateAll(calculate_all) => self.calculate_all(calculate_all, reply),
             Command::Delete(delete) => self.delete(delete),
             Command::Reset => self.reset(),
             #[cfg(feature = "challenge-response-auth")]
@@ -592,7 +593,7 @@ where
     //       06  <- digits
     //       5A D0 A7 CA <- dynamically truncated HMAC
     // 90 00
-    #[allow(dead_code)]
+    #[cfg(feature = "calculate-all")]
     fn calculate_all<const R: usize>(
         &mut self,
         calculate_all: command::CalculateAll<'_>,

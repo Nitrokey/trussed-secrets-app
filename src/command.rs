@@ -551,6 +551,7 @@ impl<'l, const C: usize> TryFrom<&'l iso7816::Command<C>> for Command<'l> {
                 (0x00, oath::Instruction::Calculate, 0x00, 0x01) => {
                     Self::Calculate(Calculate::try_from(data)?)
                 }
+                #[cfg(feature = "calculate-all")]
                 (0x00, oath::Instruction::CalculateAll, 0x00, 0x01) => {
                     Self::CalculateAll(CalculateAll::try_from(data)?)
                 }
