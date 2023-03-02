@@ -239,14 +239,6 @@ struct Apps {
     otp: oath_authenticator::Authenticator<VirtClient>,
 }
 
-struct ClientBuilderImpl {}
-
-impl ClientBuilder<VirtClient, dispatch::Dispatch> for ClientBuilderImpl {
-    fn build(&self, _id: &str, _backends: &'static [BackendId<dispatch::Backend>]) -> VirtClient {
-        todo!()
-    }
-}
-
 impl trussed_usbip::Apps<VirtClient, dispatch::Dispatch> for Apps {
     type Data = ();
     fn new<B: ClientBuilder<VirtClient, dispatch::Dispatch>>(builder: &B, _data: ()) -> Self {

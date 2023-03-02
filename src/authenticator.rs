@@ -5,10 +5,8 @@ use flexiber::{Encodable, EncodableHeapless};
 use heapless_bytes::Bytes;
 use iso7816::{Data, Status};
 use trussed::types::KeyId;
-use trussed::{client, syscall, try_syscall, types::PathBuf};
-
-#[allow(unused)]
 use trussed::types::Location;
+use trussed::{client, syscall, try_syscall, types::PathBuf};
 
 use crate::command::VerifyCode;
 use crate::credential::Credential;

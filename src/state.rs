@@ -7,7 +7,7 @@ use serde::Serialize;
 use encrypted_container::EncryptedDataContainer;
 use trussed::types::Message;
 use trussed::{
-    cbor_deserialize, cbor_serialize_bytes, syscall, try_syscall,
+    cbor_deserialize, syscall, try_syscall,
     types::{KeyId, Location, PathBuf},
 };
 
