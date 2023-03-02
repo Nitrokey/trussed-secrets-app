@@ -1080,7 +1080,7 @@ where
         Ok(())
     }
 
-    fn _extension_change_pin<'l>(&mut self, password: &'l [u8], new_password: &'l [u8]) -> Result {
+    fn _extension_change_pin(&mut self, password: &[u8], new_password: &[u8]) -> Result {
         self._extension_check_pin(password)?;
         self._extension_set_pin(new_password)?;
         Ok(())
