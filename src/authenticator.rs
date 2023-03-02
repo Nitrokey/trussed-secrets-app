@@ -1081,8 +1081,15 @@ where
     }
 
     fn _extension_change_pin(&mut self, password: &[u8], new_password: &[u8]) -> Result {
-        self._extension_check_pin(password)?;
-        self._extension_set_pin(new_password)?;
+        let r = try_syscall!(self.trussed.change_pin(
+            BACKEND_USER_PIN_ID,
+            Bytes::from_slice(password).map_err(|_| iso7816::Status::IncorrectDataParameter)?,
+            Bytes::from_slice(new_password).map_err(|_| iso7816::Status::IncorrectDataParameter)?,
+        ))
+        .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
+        if !r.success {
+            return Err(iso7816::Status::VerificationFailed);
+        }
         Ok(())
     }
 
