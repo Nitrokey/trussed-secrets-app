@@ -334,23 +334,17 @@ where
     fn reset(&mut self) -> Result {
         self.user_present()?;
 
-        // Well. `ykman oath reset` does not check PIN.
-        // If you lost your PIN, you wouldn't be able to reset otherwise.
-
-        debug_now!(":: reset - delete all keys");
-        try_syscall!(self.trussed.delete_all(self.options.location))
-            .map_err(|_| Status::NotEnoughMemory)?;
-
-        debug_now!(":: reset - delete all files");
-        // make sure all other files are removed as well
-        // NB: This deletes state.bin too, so it removes a possibly set password and encryption key.
-        try_syscall!(self
-            .trussed
-            .remove_dir_all(self.options.location, PathBuf::new()))
-        .map_err(|_| Status::NotEnoughMemory)?;
-
+        // Run any structured cleanup we have
         self._extension_pin_factory_reset()?;
         self.state.runtime.reset();
+
+        // Remove potential missed remains for the extra care
+        for loc in [Location::Volatile, self.options.location] {
+            info_now!(":: reset - delete all keys and files in {:?}", loc);
+            try_syscall!(self.trussed.delete_all(loc)).map_err(|_| Status::NotEnoughMemory)?;
+            try_syscall!(self.trussed.remove_dir_all(loc, PathBuf::new()))
+                .map_err(|_| Status::NotEnoughMemory)?;
+        }
 
         debug_now!(":: reset over");
         Ok(())
