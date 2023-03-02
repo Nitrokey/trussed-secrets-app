@@ -305,7 +305,7 @@ where
             .with_persistent(&mut self.trussed, |_, state| state.clone());
         let answer_to_select = AnswerToSelect::new(state.salt);
 
-        let data: heapless::Vec<u8, 128> = if self._extension_is_pin_set() {
+        let data: heapless::Vec<u8, 128> = if self._extension_is_pin_set()? {
             answer_to_select
                 .with_pin_attempt_counter(self._extension_attempt_counter())
                 .to_heapless_vec()
@@ -1100,13 +1100,10 @@ where
         reply.result.ok_or(iso7816::Status::VerificationFailed)
     }
 
-    fn _extension_is_pin_set(&mut self) -> bool {
-        let r = try_syscall!(self.trussed.has_pin(BACKEND_USER_PIN_ID)).ok();
-        if let Some(x) = r {
-            x.has_pin
-        } else {
-            false
-        }
+    fn _extension_is_pin_set(&mut self) -> Result<bool> {
+        let r = try_syscall!(self.trussed.has_pin(BACKEND_USER_PIN_ID))
+            .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
+        Ok(r.has_pin)
     }
 
     fn verify_pin<const R: usize>(
@@ -1114,7 +1111,7 @@ where
         verify_pin: command::VerifyPin<'_>,
         _reply: &mut Data<R>,
     ) -> Result {
-        if !self._extension_is_pin_set() {
+        if !self._extension_is_pin_set()? {
             return Err(Status::SecurityStatusNotSatisfied);
         }
 
@@ -1133,7 +1130,7 @@ where
         set_pin: command::SetPin<'_>,
         _reply: &mut Data<R>,
     ) -> Result {
-        if self._extension_is_pin_set() {
+        if self._extension_is_pin_set()? {
             return Err(Status::SecurityStatusNotSatisfied);
         }
         self.user_present()?;
@@ -1151,7 +1148,7 @@ where
         change_pin: command::ChangePin<'_>,
         _reply: &mut Data<R>,
     ) -> Result {
-        if !self._extension_is_pin_set() {
+        if !self._extension_is_pin_set()? {
             return Err(Status::SecurityStatusNotSatisfied);
         }
         self.user_present()?;
