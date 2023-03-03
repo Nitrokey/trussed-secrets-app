@@ -22,7 +22,7 @@ trussed = { version = "0.1", features = ["clients-3"] }
 encrypted_container = { path = "components/encrypted_container" }
 
 # extension
-trussed-auth = { git = "https://github.com/trussed-dev/trussed-auth/", rev = "refs/pull/10/head" }
+trussed-auth = { git = "https://github.com/trussed-dev/trussed-auth/", tag = "v0.1.0" }
 
 [dev-dependencies]
 log = { version = "0.4.14", default-features = false }
