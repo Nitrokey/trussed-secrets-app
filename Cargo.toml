@@ -21,19 +21,21 @@ serde = { version = "1", default-features = false }
 trussed = { version = "0.1", features = ["clients-3"] }
 encrypted_container = { path = "components/encrypted_container" }
 
+# extension
+trussed-auth = { git = "https://github.com/trussed-dev/trussed-auth/", tag = "v0.1.0" }
+
 [dev-dependencies]
 log = { version = "0.4.14", default-features = false }
 pretty_env_logger = "0.4.0"
 
 # below are for running the usbip example
-trussed-usbip = { git = "https://github.com/trussed-dev/pc-usbip-runner", default-features = false, features = ["ctaphid"], rev = "5da7c880a5be8f23599dc561643039ea4eae1ead" }
+trussed-usbip = { git = "https://github.com/trussed-dev/pc-usbip-runner", default-features = false, features = ["ctaphid"], rev = "f3a680ca4c9a1411838ae0774f1713f79d4c2979" }
 usbd-ctaphid = "0.1"
 clap = { version = "3.0.0", features = ["cargo", "derive"] }
 clap-num = "1.0.0"
 delog = { version = "0.1.6", features = ["std-log"] }
 fido-authenticator = { version = "0.1", features = ["dispatch", "log-all"] }
 admin-app = { version = "0.1", features = ["log-all"] }
-
 
 [features]
 default = ["apdu-dispatch"]
@@ -48,6 +50,12 @@ devel-ctaphid-bug = []
 # Allow to use application over CTAPHID interface
 ctaphid = ["ctaphid-dispatch"]
 
+# Enable challenge-response method (only authentication, does not encrypt data)
+challenge-response-auth = []
+
+# Enable oath calculate-all command
+calculate-all = []
+
 log-all = []
 log-none = []
 log-info = []
@@ -61,6 +69,6 @@ required-features = ["ctaphid", "devel"]
 
 
 [patch.crates-io]
-flexiber = { git = "https://github.com/Nitrokey/flexiber", rev = "0.1.1.nitrokey" }
-littlefs2 = { git = "https://github.com/Nitrokey/littlefs2", tag = "v0.3.2-nitrokey-1" }
-trussed = { git = "https://github.com/Nitrokey/trussed", tag = "v0.1.0-nitrokey-4" }
+flexiber = { git = "https://github.com/Nitrokey/flexiber", tag = "0.1.1.nitrokey" }
+trussed = { git = "https://github.com/Nitrokey/trussed", tag = "v0.1.0-nitrokey.7" }
+littlefs2 = { git =  "https://github.com/Nitrokey/littlefs2", tag = "v0.3.2-nitrokey-2" }

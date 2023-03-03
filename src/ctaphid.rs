@@ -11,7 +11,8 @@ where
         + client::HmacSha1
         + client::HmacSha256
         + client::Sha256
-        + client::Chacha8Poly1305,
+        + client::Chacha8Poly1305
+        + trussed_auth::AuthClient,
 {
     fn commands(&self) -> &'static [HidCommand] {
         &[HidCommand::Vendor(OTP_CCID)]

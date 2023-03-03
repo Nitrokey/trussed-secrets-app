@@ -2,11 +2,11 @@ use core::convert::TryInto;
 use core::time::Duration;
 
 use flexiber::{Encodable, EncodableHeapless};
+use heapless_bytes::Bytes;
 use iso7816::{Data, Status};
-use trussed::{
-    client, syscall, try_syscall,
-    types::{Location, PathBuf},
-};
+use trussed::types::KeyId;
+use trussed::types::Location;
+use trussed::{client, syscall, try_syscall, types::PathBuf};
 
 use crate::command::VerifyCode;
 use crate::credential::Credential;
@@ -14,7 +14,7 @@ use crate::oath::Kind;
 use crate::{
     command, ensure, oath,
     state::{CommandState, State},
-    Command,
+    Command, ATTEMPT_COUNTER_DEFAULT_RETRIES, BACKEND_USER_PIN_ID,
 };
 
 /// The options for the authenticator app.
@@ -102,6 +102,15 @@ struct AnswerToSelect {
 }
 
 #[derive(Clone, Copy, Encodable, Eq, PartialEq)]
+struct PINAnswerToSelect {
+    #[tlv(simple = "0x79")] // Tag::Version
+    version: OathVersion,
+
+    #[tlv(simple = "0x82")] // Tag::PINCounter
+    attempt_counter: Option<[u8; 1]>,
+}
+
+#[derive(Clone, Copy, Encodable, Eq, PartialEq)]
 struct ChallengingAnswerToSelect {
     #[tlv(simple = "0x79")] // Tag::Version
     version: OathVersion,
@@ -133,9 +142,18 @@ impl AnswerToSelect {
         }
     }
 
+    fn with_pin_attempt_counter(self, counter: Option<u8>) -> PINAnswerToSelect {
+        let c = counter.map(u8::to_be_bytes);
+        PINAnswerToSelect {
+            version: self.version,
+            attempt_counter: c,
+        }
+    }
+
     /// This challenge is only added when a password is set on the device.
     ///
     /// It is rotated each time SELECT is called.
+    #[cfg(feature = "challenge-response-auth")]
     fn with_challenge(self, challenge: [u8; 8]) -> ChallengingAnswerToSelect {
         ChallengingAnswerToSelect {
             version: self.version,
@@ -153,7 +171,8 @@ where
         + client::HmacSha1
         + client::HmacSha256
         + client::Sha256
-        + client::Chacha8Poly1305,
+        + client::Chacha8Poly1305
+        + trussed_auth::AuthClient,
 {
     // const CREDENTIAL_DIRECTORY: &'static str = "cred";
     fn credential_directory() -> PathBuf {
@@ -177,7 +196,8 @@ where
         command: &iso7816::Command<C>,
         reply: &mut Data<R>,
     ) -> Result {
-        let no_authorization_needed = self
+        #[cfg(feature = "challenge-response-auth")]
+        let no_authorization_needed_cha_resp = self
             .state
             .with_persistent(&mut self.trussed, |_, state| !state.password_set());
 
@@ -185,9 +205,6 @@ where
 
         let client_authorized_before = self.state.runtime.client_authorized;
         self.state.runtime.client_newly_authorized = false;
-        if no_authorization_needed {
-            self.state.runtime.client_authorized = true;
-        }
 
         // debug_now!("inner respond, client_authorized {}", self.state.runtime.client_authorized);
         let result = self.inner_respond(command, reply);
@@ -230,9 +247,19 @@ where
         if !self.state.runtime.client_authorized {
             match command {
                 Command::Select(_) => {}
+                #[cfg(feature = "challenge-response-auth")]
                 Command::Validate(_) => {}
                 Command::Reset => {}
+                // Always allow HOTP code verification
                 Command::VerifyCode(_) => {}
+                // Always allow to set PIN
+                Command::SetPin(_) => {}
+                // Always allow to verify PIN
+                Command::VerifyPin(_) => {}
+                // Protocol command to download the rest of the result
+                Command::SendRemaining => {}
+                // No need to call verify on that, since it requires original PIN anyway
+                Command::ChangePin(_) => {}
                 _ => return Err(Status::ConditionsOfUseNotSatisfied),
             }
         }
@@ -241,13 +268,22 @@ where
             Command::ListCredentials => self.list_credentials(reply, None),
             Command::Register(register) => self.register(register),
             Command::Calculate(calculate) => self.calculate(calculate, reply),
-            // Command::CalculateAll(calculate_all) => self.calculate_all(calculate_all, reply),
+            #[cfg(feature = "calculate-all")]
+            Command::CalculateAll(calculate_all) => self.calculate_all(calculate_all, reply),
             Command::Delete(delete) => self.delete(delete),
             Command::Reset => self.reset(),
+            #[cfg(feature = "challenge-response-auth")]
             Command::Validate(validate) => self.validate(validate, reply),
+            #[cfg(feature = "challenge-response-auth")]
             Command::SetPassword(set_password) => self.set_password(set_password),
+            #[cfg(feature = "challenge-response-auth")]
             Command::ClearPassword => self.clear_password(),
             Command::VerifyCode(verify_code) => self.verify_code(verify_code, reply),
+
+            Command::VerifyPin(vpin) => self.verify_pin(vpin, reply),
+            Command::SetPin(spin) => self.set_pin(spin, reply),
+            Command::ChangePin(cpin) => self.change_pin(cpin, reply),
+
             Command::SendRemaining => self.send_remaining(reply),
             _ => Err(Status::ConditionsOfUseNotSatisfied),
         }
@@ -269,9 +305,9 @@ where
             .with_persistent(&mut self.trussed, |_, state| state.clone());
         let answer_to_select = AnswerToSelect::new(state.salt);
 
-        let data: heapless::Vec<u8, 128> = if state.password_set() {
+        let data: heapless::Vec<u8, 128> = if self._extension_is_pin_set()? {
             answer_to_select
-                .with_challenge(self.state.runtime.challenge)
+                .with_pin_attempt_counter(self._extension_attempt_counter())
                 .to_heapless_vec()
         } else {
             answer_to_select.to_heapless_vec()
@@ -298,22 +334,17 @@ where
     fn reset(&mut self) -> Result {
         self.user_present()?;
 
-        // Well. `ykman oath reset` does not check PIN.
-        // If you lost your PIN, you wouldn't be able to reset otherwise.
-
-        debug_now!(":: reset - delete all keys");
-        try_syscall!(self.trussed.delete_all(self.options.location))
-            .map_err(|_| Status::NotEnoughMemory)?;
-
-        debug_now!(":: reset - delete all files");
-        // make sure all other files are removed as well
-        // NB: This deletes state.bin too, so it removes a possibly set password and encryption key.
-        try_syscall!(self
-            .trussed
-            .remove_dir_all(self.options.location, PathBuf::new()))
-        .map_err(|_| Status::NotEnoughMemory)?;
-
+        // Run any structured cleanup we have
+        self._extension_pin_factory_reset()?;
         self.state.runtime.reset();
+
+        // Remove potential missed remains for the extra care
+        for loc in [Location::Volatile, self.options.location] {
+            info_now!(":: reset - delete all keys and files in {:?}", loc);
+            try_syscall!(self.trussed.delete_all(loc)).map_err(|_| Status::NotEnoughMemory)?;
+            try_syscall!(self.trussed.remove_dir_all(loc, PathBuf::new()))
+                .map_err(|_| Status::NotEnoughMemory)?;
+        }
 
         debug_now!(":: reset over");
         Ok(())
@@ -337,7 +368,7 @@ where
 
         let label = &delete.label;
         if let Some(credential) = self.load_credential(label) {
-            let _deletion_result_secret = syscall!(self.trussed.delete(credential.secret)).success;
+            let _deletion_result_secret = try_syscall!(self.trussed.delete(credential.secret));
             debug_now!(
                 "Deleted secret {:?}, result: {:?}",
                 credential.secret,
@@ -379,8 +410,7 @@ where
         reply: &mut Data<R>,
         file_index: Option<usize>,
     ) -> Result {
-        // TODO check if this one conflicts with send remaining
-        if !self.state.runtime.client_authorized {
+        if !self.state.runtime.client_authorized && self.state.runtime.previously.is_none() {
             return Err(Status::ConditionsOfUseNotSatisfied);
         }
         // info_now!("recv ListCredentials");
@@ -400,7 +430,7 @@ where
                 Self::credential_directory(),
                 None
             ))
-            .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?
+            .map_err(|_| iso7816::Status::KeyReferenceNotFound)?
             .data;
 
             // Rewind if needed, otherwise return first file's content
@@ -408,10 +438,10 @@ where
                 if file_index > 0 {
                     for _ in 0..file_index - 1 {
                         try_syscall!(self.trussed.read_dir_files_next())
-                            .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
+                            .map_err(|_| iso7816::Status::KeyReferenceNotFound)?;
                     }
                     try_syscall!(self.trussed.read_dir_files_next())
-                        .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?
+                        .map_err(|_| iso7816::Status::KeyReferenceNotFound)?
                         .data
                 } else {
                     first_file
@@ -555,7 +585,7 @@ where
     //       06  <- digits
     //       5A D0 A7 CA <- dynamically truncated HMAC
     // 90 00
-    #[allow(dead_code)]
+    #[cfg(feature = "calculate-all")]
     fn calculate_all<const R: usize>(
         &mut self,
         calculate_all: command::CalculateAll<'_>,
@@ -668,6 +698,7 @@ where
         Ok(())
     }
 
+    #[cfg(feature = "challenge-response-auth")]
     fn validate<const R: usize>(
         &mut self,
         validate: command::Validate<'_>,
@@ -735,6 +766,7 @@ where
         //  challenge: &'l [u8; 8],
     }
 
+    #[cfg(feature = "challenge-response-auth")]
     fn clear_password(&mut self) -> Result {
         self.user_present()?;
 
@@ -756,6 +788,7 @@ where
         Ok(())
     }
 
+    #[cfg(feature = "challenge-response-auth")]
     fn set_password(&mut self, set_password: command::SetPassword<'_>) -> Result {
         self.user_present()?;
 
@@ -1001,6 +1034,137 @@ where
         )
     }
 
+    pub fn _extension_logout(&mut self) -> Result {
+        if let Some(key) = self.state.runtime.encryption_key.take() {
+            try_syscall!(self.trussed.delete(key))
+                .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
+        }
+        Ok(())
+    }
+
+    fn _extension_pin_factory_reset(&mut self) -> Result {
+        self._extension_logout()?;
+
+        try_syscall!(self.trussed.delete_all_pins())
+            .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
+        Ok(())
+    }
+
+    fn _extension_check_pin(&mut self, password: &[u8]) -> Result {
+        let reply = try_syscall!(self.trussed.check_pin(
+            BACKEND_USER_PIN_ID,
+            Bytes::from_slice(password).map_err(|_| iso7816::Status::IncorrectDataParameter)?
+        ))
+        .map_err(|_| iso7816::Status::SecurityStatusNotSatisfied)?;
+        if !(reply.success) {
+            Err(Status::SecurityStatusNotSatisfied)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn _extension_set_pin(&mut self, password: &[u8]) -> Result {
+        try_syscall!(self.trussed.set_pin(
+            BACKEND_USER_PIN_ID,
+            Bytes::from_slice(password).map_err(|_| iso7816::Status::IncorrectDataParameter)?,
+            Some(ATTEMPT_COUNTER_DEFAULT_RETRIES),
+            true
+        ))
+        .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
+        Ok(())
+    }
+
+    fn _extension_change_pin(&mut self, password: &[u8], new_password: &[u8]) -> Result {
+        let r = try_syscall!(self.trussed.change_pin(
+            BACKEND_USER_PIN_ID,
+            Bytes::from_slice(password).map_err(|_| iso7816::Status::IncorrectDataParameter)?,
+            Bytes::from_slice(new_password).map_err(|_| iso7816::Status::IncorrectDataParameter)?,
+        ))
+        .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
+        if !r.success {
+            return Err(iso7816::Status::VerificationFailed);
+        }
+        Ok(())
+    }
+
+    fn _extension_attempt_counter(&mut self) -> Option<u8> {
+        let reply = try_syscall!(self.trussed.pin_retries(BACKEND_USER_PIN_ID)).ok();
+        reply?.retries
+    }
+
+    fn _extension_get_key_for_pin(&mut self, password: &[u8]) -> Result<KeyId> {
+        let reply = try_syscall!(self.trussed.get_pin_key(
+            BACKEND_USER_PIN_ID,
+            Bytes::from_slice(password).map_err(|_| iso7816::Status::IncorrectDataParameter)?
+        ))
+        .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
+        reply.result.ok_or(iso7816::Status::VerificationFailed)
+    }
+
+    fn _extension_is_pin_set(&mut self) -> Result<bool> {
+        let r = try_syscall!(self.trussed.has_pin(BACKEND_USER_PIN_ID))
+            .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
+        Ok(r.has_pin)
+    }
+
+    fn verify_pin<const R: usize>(
+        &mut self,
+        verify_pin: command::VerifyPin<'_>,
+        _reply: &mut Data<R>,
+    ) -> Result {
+        if !self._extension_is_pin_set()? {
+            return Err(Status::SecurityStatusNotSatisfied);
+        }
+
+        self._extension_logout()?;
+
+        let command::VerifyPin { password } = verify_pin;
+        // Returns error, if the PIN is not set, or incorrect. Otherwise returns the KeyId
+        self.state.runtime.encryption_key = Some(self._extension_get_key_for_pin(password)?);
+
+        self.state.runtime.client_newly_authorized = true;
+        Ok(())
+    }
+
+    fn set_pin<const R: usize>(
+        &mut self,
+        set_pin: command::SetPin<'_>,
+        _reply: &mut Data<R>,
+    ) -> Result {
+        if self._extension_is_pin_set()? {
+            return Err(Status::SecurityStatusNotSatisfied);
+        }
+        self.user_present()?;
+
+        let command::SetPin { password } = set_pin;
+        self._extension_set_pin(password)
+            .map_err(|_| Status::VerificationFailed)?;
+
+        self.state.runtime.client_newly_authorized = true;
+        Ok(())
+    }
+
+    fn change_pin<const R: usize>(
+        &mut self,
+        change_pin: command::ChangePin<'_>,
+        _reply: &mut Data<R>,
+    ) -> Result {
+        if !self._extension_is_pin_set()? {
+            return Err(Status::SecurityStatusNotSatisfied);
+        }
+        self.user_present()?;
+
+        let command::ChangePin {
+            password,
+            new_password,
+        } = change_pin;
+
+        self._extension_change_pin(password, new_password)
+            .map_err(|_| Status::VerificationFailed)?;
+        self.state.runtime.client_newly_authorized = true;
+        Ok(())
+    }
+
     fn user_present(&mut self) -> Result {
         use crate::UP_TIMEOUT_MILLISECONDS;
         let result = syscall!(self.trussed.confirm_user_present(UP_TIMEOUT_MILLISECONDS)).result;
@@ -1040,7 +1204,8 @@ where
         + client::HmacSha1
         + client::HmacSha256
         + client::Sha256
-        + client::Chacha8Poly1305,
+        + client::Chacha8Poly1305
+        + trussed_auth::AuthClient,
 {
     fn select(&mut self, apdu: &iso7816::Command<C>, reply: &mut Data<R>) -> Result {
         self.respond(apdu, reply)
