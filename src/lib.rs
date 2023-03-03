@@ -6,7 +6,6 @@ generate_macros!();
 
 #[macro_use(hex)]
 extern crate hex_literal;
-extern crate alloc;
 
 pub mod authenticator;
 
