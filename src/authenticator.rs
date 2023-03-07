@@ -263,7 +263,7 @@ where
                 _ => return Err(Status::ConditionsOfUseNotSatisfied),
             }
         }
-        match command {
+        let result = match command {
             Command::Select(select) => self.select(select, reply),
             Command::ListCredentials => self.list_credentials(reply, None),
             Command::Register(register) => self.register(register),
@@ -286,6 +286,16 @@ where
 
             Command::SendRemaining => self.send_remaining(reply),
             _ => Err(Status::ConditionsOfUseNotSatisfied),
+        };
+        self.cleanup();
+        result
+    }
+
+    fn cleanup(&mut self) {
+        if let Some(k) = self.state.runtime.loaded_credential_to_drop.take() {
+            // Best effort removal
+            debug!("Removing re-injected temporary key");
+            try_syscall!(self.trussed.delete(k)).ok();
         }
     }
 
@@ -318,7 +328,7 @@ where
         Ok(())
     }
 
-    fn load_credential(&mut self, label: &[u8]) -> &Option<Credential> {
+    fn load_credential(&mut self, label: &[u8]) -> Option<Credential> {
         let filename = self.filename_for_label(label);
 
         let raw_credential: RawCredential = self
@@ -326,18 +336,17 @@ where
             .try_read_file(&mut self.trussed, filename)
             .ok()
             .unwrap();
+        /// ---------------> FIXME
         let credential: Credential = Credential::try_from(&raw_credential, &mut self.trussed)
             .ok()
             .unwrap();
 
+        self.state.runtime.loaded_credential_to_drop = Some(credential.secret);
         if label != credential.label.as_slice() {
             error_now!("Loaded credential label is different than expected. Aborting.");
-            self.state.runtime.loaded_credential_to_drop = Some(credential);
-            return &None;
+            return None;
         }
-        self.state.runtime.loaded_credential_to_drop = Some(credential);
-
-        &self.state.runtime.loaded_credential_to_drop
+        Some(credential)
     }
 
     fn reset(&mut self) -> Result {
@@ -526,7 +535,6 @@ where
         // .key;
         // info!("new key handle: {:?}", key_handle);
 
-        // 2. Replace secret in credential with handle
         let credential =
             RawCredential::try_from(&register.credential).map_err(|_| Status::NotEnoughMemory)?;
 
@@ -650,10 +658,8 @@ where
         }
         // info_now!("recv {:?}", &calculate);
 
-        let credential = self
-            .load_credential(calculate.label)
-            .as_ref()
-            .ok_or(Status::NotFound)?;
+        let credential = self.load_credential(calculate.label);
+        let credential = credential.as_ref().ok_or(Status::NotFound)?;
 
         if credential.touch_required {
             self.user_present()?;

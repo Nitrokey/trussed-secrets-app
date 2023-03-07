@@ -88,14 +88,4 @@ impl Credential {
             counter: credential.counter,
         })
     }
-
-    pub fn cleanup<T>(self, trussed: &mut T) -> crate::Result<bool>
-    where
-        T: client::Client,
-    {
-        // Move self on purpose, so it could not be used anymore
-        Ok(try_syscall!(trussed.delete(self.secret))
-            .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?
-            .success)
-    }
 }
