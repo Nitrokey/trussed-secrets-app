@@ -27,8 +27,14 @@ pub const YUBICO_OATH_AID: &[u8] = &hex!("A000000527 2101"); // 01");
 
 /// This constant defines timeout for the regular UP confirmation
 pub const UP_TIMEOUT_MILLISECONDS: u32 = 15 * 1000;
+
+/// Forced delay after providing invalid reverse HOTP code
 pub const FAILURE_FORCED_DELAY_MILLISECONDS: u32 = 1000;
+
+/// The default ID for the PIN auth backend
 pub const BACKEND_USER_PIN_ID: u8 = 0;
+
+/// The default value of the PIN attempt counter
 pub const ATTEMPT_COUNTER_DEFAULT_RETRIES: u8 = 8;
 
 /// Do not make longer messages than this size
