@@ -1,6 +1,40 @@
 use crate::{command, oath};
+use iso7816::Status;
 use serde::{Deserialize, Serialize};
+use trussed::types::Location;
 use trussed::types::{KeyId, ShortData};
+use trussed::{client, try_syscall};
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RawCredential {
+    pub label: ShortData,
+    #[serde(rename = "K")]
+    pub kind: oath::Kind,
+    #[serde(rename = "A")]
+    pub algorithm: oath::Algorithm,
+    #[serde(rename = "D")]
+    pub digits: u8,
+    #[serde(rename = "S")]
+    pub secret_raw: ShortData,
+    #[serde(rename = "T")]
+    pub touch_required: bool,
+    #[serde(rename = "C")]
+    pub counter: Option<u32>,
+}
+
+impl RawCredential {
+    pub fn try_from(credential: &command::Credential) -> Result<Self, ()> {
+        Ok(Self {
+            label: ShortData::from_slice(credential.label)?,
+            kind: credential.kind,
+            algorithm: credential.algorithm,
+            digits: credential.digits,
+            secret_raw: ShortData::from_slice(credential.secret)?,
+            touch_required: credential.touch_required,
+            counter: credential.counter,
+        })
+    }
+}
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Credential {
@@ -32,15 +66,36 @@ pub struct Credential {
 }
 
 impl Credential {
-    pub fn try_from(credential: &command::Credential, key: KeyId) -> Result<Self, ()> {
+    pub fn try_from<T>(credential: &RawCredential, trussed: &mut T) -> crate::Result<Self>
+    where
+        T: client::Client,
+    {
         Ok(Self {
-            label: ShortData::from_slice(credential.label)?,
+            label: credential
+                .label
+                .try_convert_into()
+                .map_err(|_| Status::NotEnoughMemory)?,
             kind: credential.kind,
             algorithm: credential.algorithm,
             digits: credential.digits,
-            secret: key,
+            secret: {
+                try_syscall!(trussed
+                    .unsafe_inject_shared_key(credential.secret_raw.as_slice(), Location::Volatile))
+                .map_err(|_| Status::NotEnoughMemory)?
+                .key
+            },
             touch_required: credential.touch_required,
             counter: credential.counter,
         })
+    }
+
+    pub fn cleanup<T>(self, trussed: &mut T) -> crate::Result<bool>
+    where
+        T: client::Client,
+    {
+        // Move self on purpose, so it could not be used anymore
+        Ok(try_syscall!(trussed.delete(self.secret))
+            .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?
+            .success)
     }
 }

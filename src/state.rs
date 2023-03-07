@@ -4,6 +4,7 @@ use iso7816::Status;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
+use crate::credential::Credential;
 use encrypted_container::EncryptedDataContainer;
 use trussed::types::Message;
 use trussed::{
@@ -55,6 +56,9 @@ pub struct Runtime {
 
     /// Cache
     pub encryption_key: Option<KeyId>,
+
+    /// Loaded credential to drop on action processing finish
+    pub loaded_credential_to_drop: Option<Credential>,
 }
 
 impl Runtime {
