@@ -14,7 +14,7 @@ use crate::oath::Kind;
 use crate::{
     command, ensure, oath,
     state::{CommandState, State},
-    Command, ATTEMPT_COUNTER_DEFAULT_RETRIES, BACKEND_USER_PIN_ID,
+    Command, ATTEMPT_COUNTER_DEFAULT_RETRIES, BACKEND_USER_PIN_ID, CTAPHID_MESSAGE_SIZE_LIMIT,
 };
 
 /// The options for the authenticator app.
@@ -395,10 +395,8 @@ where
         reply.push((credential.label.len() + 1) as u8)?;
         reply.push(oath::combine(credential.kind, credential.algorithm))?;
         reply.extend_from_slice(&credential.label).map_err(|_| 0)?;
-        #[cfg(feature = "devel-ctaphid-bug")]
-        if reply.len() > 3072 {
-            // Finish early due to the usbd-ctaphid bug, which panics on bigger buffers than this
-            // FIXME Remove once fixed
+        if reply.len() > CTAPHID_MESSAGE_SIZE_LIMIT {
+            // Finish early due to the usbd-ctaphid message size limit
             return Err(1);
         }
         Ok(())
