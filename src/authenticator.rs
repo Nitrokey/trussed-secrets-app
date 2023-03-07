@@ -1036,7 +1036,8 @@ where
 
     pub fn _extension_logout(&mut self) -> Result {
         if let Some(key) = self.state.runtime.encryption_key.take() {
-            try_syscall!(self.trussed.delete(key)).map_err(Self::_debug_trussed_error)?;
+            try_syscall!(self.trussed.delete(key))
+                .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
         }
         Ok(())
     }
@@ -1044,7 +1045,8 @@ where
     fn _extension_pin_factory_reset(&mut self) -> Result {
         self._extension_logout()?;
 
-        try_syscall!(self.trussed.delete_all_pins()).map_err(Self::_debug_trussed_error)?;
+        try_syscall!(self.trussed.delete_all_pins())
+            .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
 
         Ok(())
     }
@@ -1069,12 +1071,12 @@ where
             Some(ATTEMPT_COUNTER_DEFAULT_RETRIES),
             true
         ))
-        .map_err(Self::_debug_trussed_backend_error)?;
+        .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
         Ok(())
     }
 
-    fn _debug_trussed_backend_error(e: trussed::Error) -> iso7816::Status {
-        info_now!("Trussed backend error: {:?}", e);
+    fn _debug_trussed_backend_error(e: trussed::Error, l: u32) -> iso7816::Status {
+        info_now!("Trussed backend error: {:?} (line {:?})", e, l);
         iso7816::Status::UnspecifiedNonpersistentExecutionError
     }
 
@@ -1084,7 +1086,7 @@ where
             Bytes::from_slice(password).map_err(|_| iso7816::Status::IncorrectDataParameter)?,
             Bytes::from_slice(new_password).map_err(|_| iso7816::Status::IncorrectDataParameter)?,
         ))
-        .map_err(Self::_debug_trussed_backend_error)?;
+        .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
         if !r.success {
             return Err(iso7816::Status::VerificationFailed);
         }
@@ -1101,13 +1103,13 @@ where
             BACKEND_USER_PIN_ID,
             Bytes::from_slice(password).map_err(|_| iso7816::Status::IncorrectDataParameter)?
         ))
-        .map_err(Self::_debug_trussed_backend_error)?;
+        .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
         reply.result.ok_or(iso7816::Status::VerificationFailed)
     }
 
     fn _extension_is_pin_set(&mut self) -> Result<bool> {
         let r = try_syscall!(self.trussed.has_pin(BACKEND_USER_PIN_ID))
-            .map_err(Self::_debug_trussed_backend_error)?;
+            .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
         Ok(r.has_pin)
     }
 
