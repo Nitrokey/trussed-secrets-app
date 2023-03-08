@@ -367,14 +367,7 @@ where
         // SW: 90 00
 
         let label = &delete.label;
-        if let Some(credential) = self.load_credential(label) {
-            let _deletion_result_secret = try_syscall!(self.trussed.delete(credential.secret));
-            debug_now!(
-                "Deleted secret {:?}, result: {:?}",
-                credential.secret,
-                _deletion_result_secret
-            );
-
+        if let Some(_credential) = self.load_credential(label) {
             let _filename = self.filename_for_label(label);
             let _deletion_result =
                 try_syscall!(self.trussed.remove_file(self.options.location, _filename));
@@ -517,35 +510,23 @@ where
         })
         .ok();
 
-        // 1. Store secret in Trussed
-        let raw_key = register.credential.secret;
-        let key_handle = try_syscall!(self
-            .trussed
-            .unsafe_inject_shared_key(raw_key, self.options.location))
-        .map_err(|_| Status::NotEnoughMemory)?
-        .key;
-        // info!("new key handle: {:?}", key_handle);
+        // 1. Replace secret in credential with handle
+        let credential =
+            Credential::try_from(&register.credential).map_err(|_| Status::NotEnoughMemory)?;
 
-        // 2. Replace secret in credential with handle
-        let credential = Credential::try_from(&register.credential, key_handle)
-            .map_err(|_| Status::NotEnoughMemory)?;
-
-        // 3. Generate a filename for the credential
+        // 2. Generate a filename for the credential
         let filename = self.filename_for_label(&credential.label);
 
-        // 4. Serialize the credential (implicitly) and store it
+        // 3. Serialize the credential (implicitly) and store it
         let write_res = self
             .state
             .try_write_file(&mut self.trussed, filename, &credential);
 
         if write_res.is_err() {
-            // TODO reuse delete() call
-            // 1. Try to delete the key from Trussed, ignore errors
-            try_syscall!(self.trussed.delete(credential.secret)).ok();
-            // 2. Try to delete the empty file, ignore errors
+            // 1. Try to delete the empty file, ignore errors
             let filename = self.filename_for_label(&credential.label);
             try_syscall!(self.trussed.remove_file(self.options.location, filename)).ok();
-            // 3. Return the original error
+            // 2. Return the original error
             write_res?
         }
 
@@ -618,7 +599,7 @@ where
                     &mut self.trussed,
                     credential.algorithm,
                     calculate_all.challenge,
-                    credential.secret,
+                    &credential.secret,
                 )?;
                 reply.push(0x76).unwrap();
                 reply.push(5).unwrap();
@@ -663,7 +644,7 @@ where
                 &mut self.trussed,
                 credential.algorithm,
                 calculate.challenge,
-                credential.secret,
+                &credential.secret,
             )?,
             oath::Kind::Hotp => {
                 if let Some(counter) = credential.counter {
@@ -1030,7 +1011,7 @@ where
             &mut self.trussed,
             credential.algorithm,
             &counter_long.to_be_bytes(),
-            credential.secret,
+            &credential.secret,
         )
     }
 
