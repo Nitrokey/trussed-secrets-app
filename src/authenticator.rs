@@ -331,15 +331,11 @@ where
     fn load_credential(&mut self, label: &[u8]) -> Option<Credential> {
         let filename = self.filename_for_label(label);
 
-        let raw_credential: RawCredential = self
-            .state
-            .try_read_file(&mut self.trussed, filename)
-            .ok()
-            .unwrap();
-        /// ---------------> FIXME
-        let credential: Credential = Credential::try_from(&raw_credential, &mut self.trussed)
-            .ok()
-            .unwrap();
+        let raw_credential: RawCredential =
+            self.state.try_read_file(&mut self.trussed, filename).ok()?;
+
+        let credential: Credential =
+            Credential::try_from(&raw_credential, &mut self.trussed).ok()?;
 
         self.state.runtime.loaded_credential_to_drop = Some(credential.secret);
         if label != credential.label.as_slice() {
@@ -457,7 +453,7 @@ where
                 }
             };
 
-            let maybe_credential: Option<Credential> = match file {
+            let maybe_credential: Option<RawCredential> = match file {
                 None => None,
                 Some(c) => self.state.decrypt_content(&mut self.trussed, c).ok(),
             };
@@ -468,6 +464,7 @@ where
         while let Some(credential) = maybe_credential {
             // Try to serialize, abort if not succeeded
             let current_reply_bytes_count = reply.len();
+            let credential = Credential::try_from(&credential, &mut self.trussed)?;
             let res = Self::try_to_serialize_credential_for_list(&credential, reply);
             if res.is_err() {
                 // Revert reply vector to the last good size, removing debris from the failed
