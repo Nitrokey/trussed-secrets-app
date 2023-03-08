@@ -94,12 +94,12 @@ impl State {
             .map_err(|_| iso7816::Status::SecurityStatusNotSatisfied)?;
         let data = EncryptedDataContainer::from_obj(trussed, obj, None, encryption_key).map_err(
             |_err| {
-                error!("error serializing: {:?}", _err);
+                error!("error encrypting object: {:?}", _err);
                 Status::UnspecifiedPersistentExecutionError
             },
         )?;
         let data_serialized: Message = data.try_into().map_err(|_err| {
-            error!("error transforming: {:?}", _err);
+            error!("error serializing container: {:?}", _err);
             Status::UnspecifiedPersistentExecutionError
         })?;
         debug_now!("Container size: {}", data_serialized.len());
