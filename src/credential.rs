@@ -1,6 +1,6 @@
 use crate::{command, oath};
 use serde::{Deserialize, Serialize};
-use trussed::types::{KeyId, ShortData};
+use trussed::types::ShortData;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Credential {
@@ -24,7 +24,7 @@ pub struct Credential {
     /// Meanwhile, the client app just pads up to 14B :)
 
     #[serde(rename = "S")]
-    pub secret: KeyId,
+    pub secret: ShortData,
     #[serde(rename = "T")]
     pub touch_required: bool,
     #[serde(rename = "C")]
@@ -32,13 +32,13 @@ pub struct Credential {
 }
 
 impl Credential {
-    pub fn try_from(credential: &command::Credential, key: KeyId) -> Result<Self, ()> {
+    pub fn try_from(credential: &command::Credential) -> Result<Self, ()> {
         Ok(Self {
             label: ShortData::from_slice(credential.label)?,
             kind: credential.kind,
             algorithm: credential.algorithm,
             digits: credential.digits,
-            secret: key,
+            secret: ShortData::from_slice(credential.secret)?,
             touch_required: credential.touch_required,
             counter: credential.counter,
         })
