@@ -14,7 +14,7 @@ use crate::oath::Kind;
 use crate::{
     command, ensure, oath,
     state::{CommandState, State},
-    Command, ATTEMPT_COUNTER_DEFAULT_RETRIES, BACKEND_USER_PIN_ID,
+    Command, ATTEMPT_COUNTER_DEFAULT_RETRIES, BACKEND_USER_PIN_ID, CTAPHID_MESSAGE_SIZE_LIMIT,
 };
 
 /// The options for the authenticator app.
@@ -388,10 +388,8 @@ where
         reply.push((credential.label.len() + 1) as u8)?;
         reply.push(oath::combine(credential.kind, credential.algorithm))?;
         reply.extend_from_slice(&credential.label).map_err(|_| 0)?;
-        #[cfg(feature = "devel-ctaphid-bug")]
-        if reply.len() > 3072 {
-            // Finish early due to the usbd-ctaphid bug, which panics on bigger buffers than this
-            // FIXME Remove once fixed
+        if reply.len() > CTAPHID_MESSAGE_SIZE_LIMIT {
+            // Finish early due to the usbd-ctaphid message size limit
             return Err(1);
         }
         Ok(())
@@ -1018,7 +1016,7 @@ where
     pub fn _extension_logout(&mut self) -> Result {
         if let Some(key) = self.state.runtime.encryption_key.take() {
             try_syscall!(self.trussed.delete(key))
-                .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
+                .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
         }
         Ok(())
     }
@@ -1027,7 +1025,8 @@ where
         self._extension_logout()?;
 
         try_syscall!(self.trussed.delete_all_pins())
-            .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
+            .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
+
         Ok(())
     }
 
@@ -1051,8 +1050,13 @@ where
             Some(ATTEMPT_COUNTER_DEFAULT_RETRIES),
             true
         ))
-        .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
+        .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
         Ok(())
+    }
+
+    fn _debug_trussed_backend_error(e: trussed::Error, l: u32) -> iso7816::Status {
+        info_now!("Trussed backend error: {:?} (line {:?})", e, l);
+        iso7816::Status::UnspecifiedNonpersistentExecutionError
     }
 
     fn _extension_change_pin(&mut self, password: &[u8], new_password: &[u8]) -> Result {
@@ -1061,7 +1065,7 @@ where
             Bytes::from_slice(password).map_err(|_| iso7816::Status::IncorrectDataParameter)?,
             Bytes::from_slice(new_password).map_err(|_| iso7816::Status::IncorrectDataParameter)?,
         ))
-        .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
+        .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
         if !r.success {
             return Err(iso7816::Status::VerificationFailed);
         }
@@ -1078,13 +1082,13 @@ where
             BACKEND_USER_PIN_ID,
             Bytes::from_slice(password).map_err(|_| iso7816::Status::IncorrectDataParameter)?
         ))
-        .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
+        .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
         reply.result.ok_or(iso7816::Status::VerificationFailed)
     }
 
     fn _extension_is_pin_set(&mut self) -> Result<bool> {
         let r = try_syscall!(self.trussed.has_pin(BACKEND_USER_PIN_ID))
-            .map_err(|_| iso7816::Status::UnspecifiedNonpersistentExecutionError)?;
+            .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
         Ok(r.has_pin)
     }
 

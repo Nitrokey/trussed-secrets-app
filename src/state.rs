@@ -92,11 +92,16 @@ impl State {
         let encryption_key = self
             .get_encryption_key_from_state()
             .map_err(|_| iso7816::Status::SecurityStatusNotSatisfied)?;
-        let data = EncryptedDataContainer::from_obj(trussed, obj, None, encryption_key)
-            .map_err(|_| Status::UnspecifiedPersistentExecutionError)?;
-        let data_serialized: Message = data
-            .try_into()
-            .map_err(|_| Status::UnspecifiedPersistentExecutionError)?;
+        let data = EncryptedDataContainer::from_obj(trussed, obj, None, encryption_key).map_err(
+            |_err| {
+                error!("error encrypting object: {:?}", _err);
+                Status::UnspecifiedPersistentExecutionError
+            },
+        )?;
+        let data_serialized: Message = data.try_into().map_err(|_err| {
+            error!("error serializing container: {:?}", _err);
+            Status::UnspecifiedPersistentExecutionError
+        })?;
         debug_now!("Container size: {}", data_serialized.len());
         try_syscall!(trussed.write_file(self.location, filename, data_serialized, None)).map_err(
             |_| {
