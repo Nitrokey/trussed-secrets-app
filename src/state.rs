@@ -1,4 +1,5 @@
 use core::convert::TryInto;
+use core::time::Duration;
 
 use iso7816::Status;
 use serde::de::DeserializeOwned;
@@ -52,6 +53,8 @@ pub struct Runtime {
     /// For book-keeping purposes, set client_authorized / prevents it from being cleared before
     /// returning control to caller of the app
     pub client_newly_authorized: bool,
+
+    pub last_failed_request: Option<Duration>,
 
     /// Cache
     pub encryption_key: Option<KeyId>,
