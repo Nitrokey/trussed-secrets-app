@@ -4,6 +4,7 @@ use core::time::Duration;
 use flexiber::{Encodable, EncodableHeapless};
 use heapless_bytes::Bytes;
 use iso7816::{Data, Status};
+use iso7816::Status::SecurityStatusNotSatisfied;
 use trussed::types::KeyId;
 use trussed::types::Location;
 use trussed::{client, syscall, try_syscall, types::PathBuf};
@@ -164,6 +165,8 @@ impl AnswerToSelect {
         }
     }
 }
+
+const REQUIRED_DELAY_ON_FAILED_VERIFICATION: Duration = Duration::from_secs(5);
 
 impl<T> Authenticator<T>
 where
@@ -897,6 +900,9 @@ where
     /// Device will stop verifying the HOTP codes in case, when the difference between the host and on-device counters will be greater or equal to 10.
     fn verify_code<const R: usize>(&mut self, args: VerifyCode, reply: &mut Data<{ R }>) -> Result {
         const COUNTER_WINDOW_SIZE: u32 = 9;
+        self.deny_if_too_soon_after_failure()?;
+        self.mark_failed_verification_time()?;
+
         let credential = self.load_credential(args.label).ok_or(Status::NotFound)?;
 
         if credential.touch_required {
@@ -936,13 +942,13 @@ where
             None => {
                 // Failed verification
                 self.wink_bad();
-                self.delay_on_failure();
                 return Err(Status::VerificationFailed);
             }
             Some(val) => val,
         };
 
         self.bump_counter_for_cred(&credential, found)?;
+        self.clear_failed_verification_time();
         self.wink_good();
 
         // Verification passed
@@ -1159,6 +1165,24 @@ where
         })
     }
 
+    fn clear_failed_verification_time(&mut self)  {
+        // Clear failed state on success
+        self.state.runtime.last_failed_request = None;
+    }
+
+    fn mark_failed_verification_time(&mut self) -> Result {
+        let uptime = self.get_uptime()?;
+        self.state.runtime.last_failed_request = Some(uptime);
+        Ok(())
+    }
+
+    fn get_uptime(&mut self) -> Result<Duration> {
+        let uptime = try_syscall!( self.trussed.uptime() )
+            .map_err(|_| SecurityStatusNotSatisfied)?
+            .uptime;
+        Ok(uptime)
+    }
+
     fn wink_bad(&mut self) {
         // TODO blink red LED infinite times, highest priority
         syscall!(self.trussed.wink(Duration::from_secs(1000)));
@@ -1169,10 +1193,16 @@ where
         syscall!(self.trussed.wink(Duration::from_secs(10)));
     }
 
-    fn delay_on_failure(&mut self) {
-
-        // TODO block for the time defined in the constant
-        // DESIGN allow only a couple of failures per power cycle? Similarly to the FIDO2 PIN
+    fn deny_if_too_soon_after_failure(&mut self) -> Result {
+        // Deny request, if required time from the last one failed has not passed yet
+        // Make brute-force attack slower.
+        if let Some(lft) = self.state.runtime.last_failed_request {
+            let uptime = self.get_uptime()?;
+            if uptime.saturating_sub(lft) < REQUIRED_DELAY_ON_FAILED_VERIFICATION {
+                return Err(Status::SecurityStatusNotSatisfied);
+            }
+        }
+        return Ok(());
     }
 }
 
