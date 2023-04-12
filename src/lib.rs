@@ -9,6 +9,7 @@ extern crate hex_literal;
 
 pub mod authenticator;
 
+use core::time::Duration;
 pub use authenticator::{Authenticator, Options};
 mod calculate;
 mod command;
@@ -28,9 +29,6 @@ pub const YUBICO_OATH_AID: &[u8] = &hex!("A000000527 2101"); // 01");
 /// This constant defines timeout for the regular UP confirmation
 pub const UP_TIMEOUT_MILLISECONDS: u32 = 15 * 1000;
 
-/// Forced delay after providing invalid reverse HOTP code
-pub const FAILURE_FORCED_DELAY_MILLISECONDS: u32 = 1000;
-
 /// The default ID for the PIN auth backend
 pub const BACKEND_USER_PIN_ID: u8 = 0;
 
@@ -39,6 +37,22 @@ pub const ATTEMPT_COUNTER_DEFAULT_RETRIES: u8 = 8;
 
 /// Do not make longer messages than this size
 pub const CTAPHID_MESSAGE_SIZE_LIMIT: usize = 3072;
+
+#[repr(u8)]
+pub enum CustomStatus {
+    /// The custom status to be shown for the successful verification for the Reverse HOTP.
+    /// By design this should be: blink green LED for 10 seconds, highest priority
+    ReverseHotpSuccess = 0,
+
+    /// The custom status to be shown for the failed verification for the Reverse HOTP.
+    /// By design this should be: blink red LED infinite times, highest priority
+    ReverseHotpError = 1,
+}
+
+/// Deny Reverse HOTP request, if required time from the last failed verification attempt has not passed yet
+/// Makes brute-force attack slower.
+pub const REQUIRED_DELAY_ON_FAILED_VERIFICATION: Duration = Duration::from_secs(5);
+
 
 // class AID(bytes, Enum):
 //     OTP = b'\xa0\x00\x00\x05\x27 \x20\x01'
