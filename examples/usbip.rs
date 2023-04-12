@@ -190,8 +190,6 @@ impl admin_app::Reboot for Reboot {
     }
 }
 
-
-
 #[repr(u8)]
 #[derive(Debug)]
 pub enum CustomStatus {
@@ -220,8 +218,7 @@ impl TryFrom<u8> for CustomStatus {
 
 pub struct UnknownStatusError(u8);
 
-impl CustomStatus {
-}
+impl CustomStatus {}
 
 #[derive(Debug)]
 struct UserInterface {
@@ -251,8 +248,8 @@ impl trussed::platform::UserInterface for UserInterface {
 
     fn set_status(&mut self, status: ui::Status) {
         debug!("Set status: {:?}", status);
-        if let ui::Status::Custom(s) = status  {
-            let cs: CustomStatus = CustomStatus::try_from(s ).unwrap_or_else(|_| {
+        if let ui::Status::Custom(s) = status {
+            let cs: CustomStatus = CustomStatus::try_from(s).unwrap_or_else(|_| {
                 warn!("Unsupported status value: {:?}", status);
                 CustomStatus::Unknown
             });

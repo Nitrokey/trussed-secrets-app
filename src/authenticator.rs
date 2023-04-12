@@ -3,8 +3,8 @@ use core::time::Duration;
 
 use flexiber::{Encodable, EncodableHeapless};
 use heapless_bytes::Bytes;
-use iso7816::{Data, Status};
 use iso7816::Status::SecurityStatusNotSatisfied;
+use iso7816::{Data, Status};
 use trussed::types::KeyId;
 use trussed::types::Location;
 use trussed::{client, syscall, try_syscall, types::PathBuf};
@@ -12,7 +12,12 @@ use trussed::{client, syscall, try_syscall, types::PathBuf};
 use crate::command::VerifyCode;
 use crate::credential::Credential;
 use crate::oath::Kind;
-use crate::{command, ensure, oath, state::{CommandState, State}, Command, ATTEMPT_COUNTER_DEFAULT_RETRIES, BACKEND_USER_PIN_ID, CTAPHID_MESSAGE_SIZE_LIMIT, REQUIRED_DELAY_ON_FAILED_VERIFICATION, CustomStatus};
+use crate::{
+    command, ensure, oath,
+    state::{CommandState, State},
+    Command, CustomStatus, ATTEMPT_COUNTER_DEFAULT_RETRIES, BACKEND_USER_PIN_ID,
+    CTAPHID_MESSAGE_SIZE_LIMIT, REQUIRED_DELAY_ON_FAILED_VERIFICATION,
+};
 
 /// The options for the authenticator app.
 #[derive(Clone, Copy, Debug)]
@@ -161,7 +166,6 @@ impl AnswerToSelect {
         }
     }
 }
-
 
 impl<T> Authenticator<T>
 where
@@ -1161,7 +1165,7 @@ where
     }
 
     /// Clear failed Reverse HOTP verification state. Should be called on successful verification.
-    fn clear_failed_verification_time(&mut self)  {
+    fn clear_failed_verification_time(&mut self) {
         self.state.runtime.last_failed_request = None;
     }
 
@@ -1172,7 +1176,7 @@ where
     }
 
     fn get_uptime(&mut self) -> Result<Duration> {
-        let uptime = try_syscall!( self.trussed.uptime() )
+        let uptime = try_syscall!(self.trussed.uptime())
             .map_err(|_| SecurityStatusNotSatisfied)?
             .uptime;
         Ok(uptime)
@@ -1181,13 +1185,17 @@ where
     fn wink_bad(&mut self) {
         // Blink red LED infinite times, highest priority
         warn!("Verification failed, calling critical error status");
-        syscall!(self.trussed.set_custom_status(CustomStatus::ReverseHotpError as u8));
+        syscall!(self
+            .trussed
+            .set_custom_status(CustomStatus::ReverseHotpError as u8));
     }
 
     fn wink_good(&mut self) {
         // Blink green LED for 10 seconds, highest priority
         info!("Verification passed, calling success status");
-        syscall!(self.trussed.set_custom_status(CustomStatus::ReverseHotpSuccess as u8));
+        syscall!(self
+            .trussed
+            .set_custom_status(CustomStatus::ReverseHotpSuccess as u8));
     }
 
     /// Deny request, if required time from the last one failed has not passed yet

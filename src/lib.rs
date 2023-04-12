@@ -9,8 +9,8 @@ extern crate hex_literal;
 
 pub mod authenticator;
 
-use core::time::Duration;
 pub use authenticator::{Authenticator, Options};
+use core::time::Duration;
 mod calculate;
 mod command;
 pub use command::Command;
@@ -52,7 +52,6 @@ pub enum CustomStatus {
 /// Deny Reverse HOTP request, if required time from the last failed verification attempt has not passed yet
 /// Makes brute-force attack slower.
 pub const REQUIRED_DELAY_ON_FAILED_VERIFICATION: Duration = Duration::from_secs(5);
-
 
 // class AID(bytes, Enum):
 //     OTP = b'\xa0\x00\x00\x05\x27 \x20\x01'
