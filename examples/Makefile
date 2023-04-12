@@ -49,10 +49,10 @@ stop:
 
 .PHONY: setup-fedora
 setup-fedora:
-	sudo dnf install usbip
-	sudo dnf install fuse-devel
-	sudo dnf install clang-libs-13.0.0
-	sudo ln -s /usr/lib64/libclang.so.13 /usr/lib64/libclang.so
+	sudo dnf install usbip -y
+	sudo dnf install fuse-devel -y
+	sudo dnf install clang-libs clang -y
+	sudo ln -s /usr/lib64/libclang.so.15 /usr/lib64/libclang.so
 
 .PHONY: clean
 clean:
