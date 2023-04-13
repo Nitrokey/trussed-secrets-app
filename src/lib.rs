@@ -38,17 +38,6 @@ pub const ATTEMPT_COUNTER_DEFAULT_RETRIES: u8 = 8;
 /// Do not make longer messages than this size
 pub const CTAPHID_MESSAGE_SIZE_LIMIT: usize = 3072;
 
-#[repr(u8)]
-pub enum CustomStatus {
-    /// The custom status to be shown for the successful verification for the Reverse HOTP.
-    /// By design this should be: blink green LED for 10 seconds, highest priority
-    ReverseHotpSuccess = 0,
-
-    /// The custom status to be shown for the failed verification for the Reverse HOTP.
-    /// By design this should be: blink red LED infinite times, highest priority
-    ReverseHotpError = 1,
-}
-
 /// Deny Reverse HOTP request, if required time from the last failed verification attempt has not passed yet
 /// Makes brute-force attack slower.
 pub const REQUIRED_DELAY_ON_FAILED_VERIFICATION: Duration = Duration::from_secs(5);

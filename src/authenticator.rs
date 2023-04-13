@@ -15,8 +15,8 @@ use crate::oath::Kind;
 use crate::{
     command, ensure, oath,
     state::{CommandState, State},
-    Command, CustomStatus, ATTEMPT_COUNTER_DEFAULT_RETRIES, BACKEND_USER_PIN_ID,
-    CTAPHID_MESSAGE_SIZE_LIMIT, REQUIRED_DELAY_ON_FAILED_VERIFICATION,
+    Command, ATTEMPT_COUNTER_DEFAULT_RETRIES, BACKEND_USER_PIN_ID, CTAPHID_MESSAGE_SIZE_LIMIT,
+    REQUIRED_DELAY_ON_FAILED_VERIFICATION,
 };
 
 /// The options for the authenticator app.
@@ -25,20 +25,28 @@ use crate::{
 pub struct Options {
     /// The storage location for the application data (default: internal).
     pub location: Location,
+
+    /// The custom status id to be set for the successful verification for the Reverse HOTP.
+    /// By design this should be animated as: blink green LED for 10 seconds, highest priority.
+    pub custom_status_reverse_hotp_success: u8,
+
+    /// The custom status id to be set for the failed verification for the Reverse HOTP.
+    /// By design this should be animated as: blink red LED infinite times, highest priority.
+    pub custom_status_reverse_hotp_error: u8,
 }
 
 impl Options {
     /// Creates the default options.
-    pub const fn new() -> Self {
+    pub const fn new(
+        location: Location,
+        custom_status_reverse_hotp_success: u8,
+        custom_status_reverse_hotp_error: u8,
+    ) -> Self {
         Self {
-            location: Location::Internal,
+            location,
+            custom_status_reverse_hotp_success,
+            custom_status_reverse_hotp_error,
         }
-    }
-}
-
-impl Default for Options {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -181,11 +189,7 @@ where
         PathBuf::from("cred")
     }
 
-    pub fn new(trussed: T) -> Self {
-        Self::with_options(trussed, Default::default())
-    }
-
-    pub fn with_options(trussed: T, options: Options) -> Self {
+    pub fn new(trussed: T, options: Options) -> Self {
         Self {
             state: State::new(options.location),
             trussed,
@@ -1187,7 +1191,7 @@ where
         warn!("Verification failed, calling critical error status");
         syscall!(self
             .trussed
-            .set_custom_status(CustomStatus::ReverseHotpError as u8));
+            .set_custom_status(self.options.custom_status_reverse_hotp_error));
     }
 
     fn wink_good(&mut self) {
@@ -1195,7 +1199,7 @@ where
         info!("Verification passed, calling success status");
         syscall!(self
             .trussed
-            .set_custom_status(CustomStatus::ReverseHotpSuccess as u8));
+            .set_custom_status(self.options.custom_status_reverse_hotp_success));
     }
 
     /// Deny request, if required time from the last one failed has not passed yet

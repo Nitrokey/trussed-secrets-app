@@ -123,6 +123,7 @@ use clap_num::maybe_hex;
 use log::{debug, info, warn};
 use trussed::backend::BackendId;
 use trussed::platform::{consent, reboot, ui};
+use trussed::types::Location;
 use trussed::{virt, ClientImplementation, Platform};
 use trussed_usbip::ClientBuilder;
 
@@ -294,7 +295,15 @@ impl trussed_usbip::Apps<VirtClient, dispatch::Dispatch> for Apps {
             },
         );
         let admin = admin_app::App::new(builder.build("admin", &[BackendId::Core]), [0; 16], 0);
-        let otp = oath_authenticator::Authenticator::new(builder.build("otp", dispatch::BACKENDS));
+        let options = oath_authenticator::Options::new(
+            Location::Internal,
+            CustomStatus::ReverseHotpSuccess as u8,
+            CustomStatus::ReverseHotpError as u8,
+        );
+        let otp = oath_authenticator::Authenticator::new(
+            builder.build("otp", dispatch::BACKENDS),
+            options,
+        );
 
         Self { fido, admin, otp }
     }
