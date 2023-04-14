@@ -9,7 +9,7 @@ use trussed::types::KeyId;
 use trussed::types::Location;
 use trussed::{client, syscall, try_syscall, types::PathBuf};
 
-use crate::command::VerifyCode;
+use crate::command::{EncryptionKeyType, VerifyCode};
 use crate::credential::Credential;
 use crate::oath::Kind;
 use crate::{
@@ -196,6 +196,12 @@ where
         }
     }
 
+    pub fn init(&mut self) {
+        if self.state.runtime.encryption_key_hardware.is_none() {
+            self.state.runtime.encryption_key_hardware = self._extension_get_hardware_key().ok();
+        }
+    }
+
     pub fn respond<const C: usize, const R: usize>(
         &mut self,
         command: &iso7816::Command<C>,
@@ -245,30 +251,16 @@ where
         )?;
         ensure(class.channel() == Some(0), Status::ClassNotSupported)?;
 
-        // parse Iso7816Command as PivCommand
+        // parse Iso7816Command
         let command: Command = command.try_into()?;
         info_now!("{:?}", &command);
 
-        if !self.state.runtime.client_authorized {
-            match command {
-                Command::Select(_) => {}
-                #[cfg(feature = "challenge-response-auth")]
-                Command::Validate(_) => {}
-                Command::Reset => {}
-                // Always allow HOTP code verification
-                Command::VerifyCode(_) => {}
-                // Always allow to set PIN
-                Command::SetPin(_) => {}
-                // Always allow to verify PIN
-                Command::VerifyPin(_) => {}
-                // Protocol command to download the rest of the result
-                Command::SendRemaining => {}
-                // No need to call verify on that, since it requires original PIN anyway
-                Command::ChangePin(_) => {}
-                _ => return Err(Status::ConditionsOfUseNotSatisfied),
-            }
-        }
-        match command {
+        // Allow all commands to be called without PIN verification
+
+        self.init();
+
+        // Process the request
+        let result = match command {
             Command::Select(select) => self.select(select, reply),
             Command::ListCredentials => self.list_credentials(reply, None),
             Command::Register(register) => self.register(register),
@@ -291,7 +283,27 @@ where
 
             Command::SendRemaining => self.send_remaining(reply),
             _ => Err(Status::ConditionsOfUseNotSatisfied),
-        }
+        };
+
+        // Call logout after processing, so the PIN-based KEK would not be kept in the memory
+        // DESIGN -> Per-request authorization
+        if self.state.runtime.encryption_key.is_some() {
+            // Do not call automatic logout after these commands
+            match command {
+                // Always allow to set PIN
+                Command::SetPin(_) => {}
+                // Always allow to verify PIN
+                Command::VerifyPin(_) => {}
+                // Protocol command to download the rest of the result
+                Command::SendRemaining => {}
+                _ => {
+                    debug_now!("Calling logout");
+                    self._extension_logout().ok();
+                }
+            }
+        };
+
+        result
     }
 
     fn select<const R: usize>(
@@ -326,7 +338,11 @@ where
     fn load_credential(&mut self, label: &[u8]) -> Option<Credential> {
         let filename = self.filename_for_label(label);
 
-        let credential: Credential = self.state.try_read_file(&mut self.trussed, filename).ok()?;
+        let mut credential: Credential =
+            self.state.try_read_file(&mut self.trussed, filename).ok()?;
+        // Set the default EncryptionKeyType as PinBased for backwards compatibility
+        // All new records should have it set as HardwareBased, if not overridden by user
+        credential.key_type = Some(credential.key_type.unwrap_or(EncryptionKeyType::PinBased));
 
         if label != credential.label.as_slice() {
             error_now!("Loaded credential label is different than expected. Aborting.");
@@ -356,9 +372,6 @@ where
     }
 
     fn delete(&mut self, delete: command::Delete<'_>) -> Result {
-        if !self.state.runtime.client_authorized {
-            return Err(Status::ConditionsOfUseNotSatisfied);
-        }
         debug_now!("{:?}", delete);
         // It seems tooling first lists all credentials, so the case of
         // delete being called on a non-existing label hardly occurs.
@@ -406,9 +419,6 @@ where
         reply: &mut Data<R>,
         file_index: Option<usize>,
     ) -> Result {
-        if !self.state.runtime.client_authorized && self.state.runtime.previously.is_none() {
-            return Err(Status::ConditionsOfUseNotSatisfied);
-        }
         // info_now!("recv ListCredentials");
         // return Ok(Default::default());
         // 72 13 21
@@ -452,16 +462,18 @@ where
         };
 
         let mut file_index = file_index;
-        while let Some(credential) = maybe_credential {
-            // Try to serialize, abort if not succeeded
-            let current_reply_bytes_count = reply.len();
-            let res = Self::try_to_serialize_credential_for_list(&credential, reply);
-            if res.is_err() {
-                // Revert reply vector to the last good size, removing debris from the failed
-                // serialization
-                reply.truncate(current_reply_bytes_count);
-                return Err(Status::MoreAvailable(0xFF));
-            }
+        loop {
+            if let Some(credential) = maybe_credential {
+                // Try to serialize, abort if does not fit into the reply buffer
+                let current_reply_bytes_count = reply.len();
+                let res = Self::try_to_serialize_credential_for_list(&credential, reply);
+                if res.is_err() {
+                    // Revert reply vector to the last good size, removing debris from the failed
+                    // serialization
+                    reply.truncate(current_reply_bytes_count);
+                    return Err(Status::MoreAvailable(0xFF));
+                }
+            };
 
             // keep track, in case we need continuation
             file_index += 1;
@@ -469,7 +481,9 @@ where
 
             // check if there's more
             maybe_credential = match syscall!(self.trussed.read_dir_files_next()).data {
-                None => None,
+                // no more files, break the loop and return
+                None => break,
+                // we do not have the right key, continue
                 Some(c) => self.state.decrypt_content(&mut self.trussed, c).ok(),
             };
         }
@@ -500,11 +514,9 @@ where
     fn register(&mut self, register: command::Register<'_>) -> Result {
         self.user_present()?;
 
-        if !self.state.runtime.client_authorized {
-            return Err(Status::ConditionsOfUseNotSatisfied);
-        }
         // info_now!("recv {:?}", &register);
 
+        // Allow to overwrite existing credentials by default
         // 0. ykman does not call delete before register, so we need to speculatively
         // delete the credential (the credential file would be replaced, but we need
         // to delete the secret key).
@@ -521,9 +533,12 @@ where
         let filename = self.filename_for_label(&credential.label);
 
         // 3. Serialize the credential (implicitly) and store it
-        let write_res = self
-            .state
-            .try_write_file(&mut self.trussed, filename, &credential);
+        let write_res = self.state.try_write_file(
+            &mut self.trussed,
+            filename,
+            &credential,
+            credential.key_type,
+        );
 
         if write_res.is_err() {
             // 1. Try to delete the empty file, ignore errors
@@ -629,9 +644,6 @@ where
         calculate: command::Calculate<'_>,
         reply: &mut Data<R>,
     ) -> Result {
-        if !self.state.runtime.client_authorized {
-            return Err(Status::ConditionsOfUseNotSatisfied);
-        }
         // info_now!("recv {:?}", &calculate);
 
         let credential = self
@@ -776,9 +788,6 @@ where
     fn set_password(&mut self, set_password: command::SetPassword<'_>) -> Result {
         self.user_present()?;
 
-        if !self.state.runtime.client_authorized {
-            return Err(Status::ConditionsOfUseNotSatisfied);
-        }
         // when there is no password set:
         // APDU: 00 A4 04 00 07 (SELECT)
         //                      A0 00 00 05 27 21 01
@@ -902,6 +911,8 @@ where
     /// Device will stop verifying the HOTP codes in case, when the difference between the host and on-device counters will be greater or equal to 10.
     fn verify_code<const R: usize>(&mut self, args: VerifyCode, reply: &mut Data<{ R }>) -> Result {
         const COUNTER_WINDOW_SIZE: u32 = 9;
+
+        #[cfg(feature = "brute-force-delay")]
         self.deny_if_too_soon_after_failure()?;
         self.mark_failed_verification_time()?;
 
@@ -1001,8 +1012,12 @@ where
         );
         // save credential back, with the updated counter
         let filename = self.filename_for_label(&credential.label);
-        self.state
-            .try_write_file(&mut self.trussed, filename, &credential)?;
+        self.state.try_write_file(
+            &mut self.trussed,
+            filename,
+            &credential,
+            credential.key_type,
+        )?;
 
         Ok(credential)
     }
@@ -1032,6 +1047,11 @@ where
     fn _extension_pin_factory_reset(&mut self) -> Result {
         self._extension_logout()?;
 
+        if let Some(key) = self.state.runtime.encryption_key_hardware.take() {
+            try_syscall!(self.trussed.delete(key))
+                .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
+        }
+
         try_syscall!(self.trussed.delete_all_pins())
             .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
 
@@ -1049,6 +1069,24 @@ where
         } else {
             Ok(())
         }
+    }
+
+    fn _extension_get_hardware_key(&mut self) -> Result<KeyId> {
+        let password: &[u8] = "HARDWARE KEY".as_ref();
+        let pin_id = BACKEND_USER_PIN_ID + 1;
+        try_syscall!(self.trussed.set_pin(
+            pin_id,
+            Bytes::from_slice(password).unwrap(),
+            None,
+            true
+        ))
+        .ok();
+        let reply = try_syscall!(self.trussed.get_pin_key(
+            pin_id,
+            Bytes::from_slice(password).map_err(|_| iso7816::Status::IncorrectDataParameter)?
+        ))
+        .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
+        reply.result.ok_or(iso7816::Status::VerificationFailed)
     }
 
     fn _extension_set_pin(&mut self, password: &[u8]) -> Result {
@@ -1154,7 +1192,6 @@ where
 
         self._extension_change_pin(password, new_password)
             .map_err(|_| Status::VerificationFailed)?;
-        self.state.runtime.client_newly_authorized = true;
         Ok(())
     }
 

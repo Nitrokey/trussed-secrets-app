@@ -99,7 +99,7 @@ impl EncryptedDataContainer {
     /// Decrypt given Bytes and return original object instance
     pub fn decrypt_from_bytes<T, O>(
         trussed: &mut T,
-        ser_encrypted: Message,
+        ser_encrypted: &Message,
         encryption_key: KeyId,
     ) -> Result<O>
     where
@@ -107,7 +107,7 @@ impl EncryptedDataContainer {
         O: DeserializeOwned,
     {
         let deserialized_container: EncryptedDataContainer =
-            cbor_deserialize(&ser_encrypted).map_err(|_| Error::DeserializationToContainerError)?;
+            cbor_deserialize(ser_encrypted).map_err(|_| Error::DeserializationToContainerError)?;
 
         deserialized_container.decrypt(trussed, None, encryption_key)
     }

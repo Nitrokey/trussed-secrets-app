@@ -1,3 +1,4 @@
+use crate::command::EncryptionKeyType;
 use crate::{command, oath};
 use serde::{Deserialize, Serialize};
 use trussed::types::ShortData;
@@ -29,6 +30,10 @@ pub struct Credential {
     pub touch_required: bool,
     #[serde(rename = "C")]
     pub counter: Option<u32>,
+
+    #[serde(rename = "E")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key_type: Option<EncryptionKeyType>,
 }
 
 impl Credential {
@@ -41,6 +46,7 @@ impl Credential {
             secret: ShortData::from_slice(credential.secret)?,
             touch_required: credential.touch_required,
             counter: credential.counter,
+            key_type: Some(credential.encryption_key_type),
         })
     }
 }

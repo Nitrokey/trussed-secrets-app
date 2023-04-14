@@ -1,4 +1,5 @@
 use core::convert::{TryFrom, TryInto};
+use serde::{Deserialize, Serialize};
 
 use iso7816::{Data, Status};
 
@@ -380,6 +381,7 @@ pub struct Credential<'l> {
     /// Meanwhile, the client app just pads up to 14B :)
     pub secret: &'l [u8],
     pub touch_required: bool,
+    pub encryption_key_type: EncryptionKeyType,
     pub counter: Option<u32>,
 }
 
@@ -419,6 +421,9 @@ impl Properties {
     fn touch_required(&self) -> bool {
         self.0 & (oath::Properties::RequireTouch as u8) != 0
     }
+    fn pin_encrypted(&self) -> bool {
+        self.0 & (oath::Properties::PINEncrypt as u8) != 0
+    }
 }
 impl<'a> flexiber::Decodable<'a> for Properties {
     fn decode(decoder: &mut flexiber::Decoder<'a>) -> flexiber::Result<Properties> {
@@ -436,6 +441,13 @@ impl flexiber::Tagged for Properties {
     fn tag() -> flexiber::Tag {
         flexiber::Tag::try_from(oath::Tag::Property as u8).unwrap()
     }
+}
+
+#[repr(u8)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Deserialize, Serialize)]
+pub enum EncryptionKeyType {
+    Hardware,
+    PinBased,
 }
 
 impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
@@ -480,6 +492,14 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
             })
             .unwrap_or(false);
 
+        let encryption_key_type = match maybe_properties
+            .map(|properties| properties.pin_encrypted())
+            .unwrap_or(false)
+        {
+            true => EncryptionKeyType::PinBased,
+            false => EncryptionKeyType::Hardware,
+        };
+
         let mut counter = None;
         // kind::Hotp and valid u32 starting counter should be more tightly tied together on a
         // type level
@@ -505,6 +525,7 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
             digits,
             secret,
             touch_required,
+            encryption_key_type,
             counter,
         };
 

@@ -5,6 +5,7 @@ use iso7816::Status;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
+use crate::command::EncryptionKeyType;
 use encrypted_container::EncryptedDataContainer;
 use trussed::types::Message;
 use trussed::{
@@ -59,6 +60,7 @@ pub struct Runtime {
 
     /// Cache
     pub encryption_key: Option<KeyId>,
+    pub encryption_key_hardware: Option<KeyId>,
 }
 
 impl Runtime {
@@ -88,14 +90,16 @@ impl State {
         trussed: &mut T,
         filename: PathBuf,
         obj: &O,
+        encryption_key_type: Option<EncryptionKeyType>,
     ) -> crate::Result
     where
         T: trussed::Client + trussed::client::Chacha8Poly1305,
         O: Serialize,
     {
         let encryption_key = self
-            .get_encryption_key_from_state()
+            .get_encryption_key_from_state(encryption_key_type)
             .map_err(|_| iso7816::Status::SecurityStatusNotSatisfied)?;
+
         let data = EncryptedDataContainer::from_obj(trussed, obj, None, encryption_key).map_err(
             |_err| {
                 error!("error encrypting object: {:?}", _err);
@@ -116,12 +120,22 @@ impl State {
         Ok(())
     }
 
-    fn get_encryption_key_from_state(&mut self) -> trussed::error::Result<KeyId> {
+    fn get_encryption_key_from_state(
+        &mut self,
+        encryption_key_type: Option<EncryptionKeyType>,
+    ) -> trussed::error::Result<KeyId> {
         // Try to read cached field (should not be empty if unlocked)
-        if self.runtime.encryption_key.is_none() {
-            error_now!("No encryption key set in the cache");
+        let key = match encryption_key_type.unwrap_or(EncryptionKeyType::Hardware) {
+            EncryptionKeyType::Hardware => self.runtime.encryption_key_hardware,
+            EncryptionKeyType::PinBased => self.runtime.encryption_key,
+        };
+        if key.is_none() {
+            error_now!(
+                "No encryption key set in the cache for type {:?}",
+                encryption_key_type
+            );
         }
-        self.runtime.encryption_key.ok_or(trussed::Error::NoSuchKey)
+        key.ok_or(trussed::Error::NoSuchKey)
     }
 
     pub fn decrypt_content<T, O>(
@@ -133,11 +147,29 @@ impl State {
         T: trussed::Client + trussed::client::Chacha8Poly1305,
         O: DeserializeOwned,
     {
-        let encryption_key = self
-            .get_encryption_key_from_state()
-            .map_err(|_| encrypted_container::Error::FailedDecryption)?;
+        // We do not know what key was used for encryption
+        // If the value is not set, we should default to PIN based encryption key. Otherwise Hardware based one.
+        // Order: PIN-based decryption (if PIN key is set), then hardware based key decryption
 
-        EncryptedDataContainer::decrypt_from_bytes(trussed, ser_encrypted, encryption_key)
+        for kt in &[EncryptionKeyType::PinBased, EncryptionKeyType::Hardware] {
+            debug_now!("Trying decryption with {:?}", kt);
+            let encryption_key = self.get_encryption_key_from_state(Some(*kt));
+            if encryption_key.is_err() {
+                debug_now!("Key {:?} is not available", kt);
+                continue;
+            }
+
+            let res = EncryptedDataContainer::decrypt_from_bytes(
+                trussed,
+                &ser_encrypted,
+                encryption_key.unwrap(),
+            );
+            debug_now!("Decryption result with {:?}: {:?}", kt, res.is_ok());
+            if res.is_ok() {
+                return res;
+            }
+        }
+        Err(encrypted_container::Error::FailedDecryption)
     }
 
     pub fn try_read_file<T, O>(

@@ -53,6 +53,10 @@ challenge-response-auth = []
 # Enable oath calculate-all command
 calculate-all = []
 
+# Require delay after failed request as a brute-force protection for Reverese HOTP Verification
+brute-force-delay = []
+
+
 log-all = []
 log-none = []
 log-info = []
