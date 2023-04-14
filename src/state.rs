@@ -54,6 +54,7 @@ pub struct Runtime {
     /// returning control to caller of the app
     pub client_newly_authorized: bool,
 
+    /// Timestamp of the last failed Reverse HOTP verification attempt, if any
     pub last_failed_request: Option<Duration>,
 
     /// Cache

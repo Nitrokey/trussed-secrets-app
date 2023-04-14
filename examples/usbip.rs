@@ -120,9 +120,10 @@ use apdu_dispatch::command::SIZE as ApduCommandSize;
 
 use clap::Parser;
 use clap_num::maybe_hex;
-use log::{debug, info};
+use log::{debug, info, warn};
 use trussed::backend::BackendId;
 use trussed::platform::{consent, reboot, ui};
+use trussed::types::Location;
 use trussed::{virt, ClientImplementation, Platform};
 use trussed_usbip::ClientBuilder;
 
@@ -190,14 +191,47 @@ impl admin_app::Reboot for Reboot {
     }
 }
 
+#[repr(u8)]
+#[derive(Debug)]
+pub enum CustomStatus {
+    ReverseHotpSuccess = 0,
+    ReverseHotpError = 1,
+    Unknown = 0xFF,
+}
+
+impl From<CustomStatus> for u8 {
+    fn from(status: CustomStatus) -> Self {
+        status as _
+    }
+}
+
+impl TryFrom<u8> for CustomStatus {
+    type Error = UnknownStatusError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::ReverseHotpSuccess),
+            1 => Ok(Self::ReverseHotpError),
+            _ => Err(UnknownStatusError(value)),
+        }
+    }
+}
+
+pub struct UnknownStatusError(u8);
+
+impl CustomStatus {}
+
+#[derive(Debug)]
 struct UserInterface {
     start_time: std::time::Instant,
+    status: Option<ui::Status>,
 }
 
 impl UserInterface {
     fn new() -> Self {
         Self {
             start_time: std::time::Instant::now(),
+            status: None,
         }
     }
 }
@@ -215,13 +249,23 @@ impl trussed::platform::UserInterface for UserInterface {
 
     fn set_status(&mut self, status: ui::Status) {
         debug!("Set status: {:?}", status);
+        if let ui::Status::Custom(s) = status {
+            let cs: CustomStatus = CustomStatus::try_from(s).unwrap_or_else(|_| {
+                warn!("Unsupported status value: {:?}", status);
+                CustomStatus::Unknown
+            });
+            info!("Set status: [{}] {:?}", s, cs);
+        }
 
         if status == ui::Status::WaitingForUserPresence {
             info!(">>>> Received confirmation request. Confirming automatically.");
         }
+        self.status = Some(status);
     }
 
-    fn refresh(&mut self) {}
+    fn refresh(&mut self) {
+        info!("Current status is: {:?}", self);
+    }
 
     fn uptime(&mut self) -> core::time::Duration {
         self.start_time.elapsed()
@@ -251,7 +295,15 @@ impl trussed_usbip::Apps<VirtClient, dispatch::Dispatch> for Apps {
             },
         );
         let admin = admin_app::App::new(builder.build("admin", &[BackendId::Core]), [0; 16], 0);
-        let otp = oath_authenticator::Authenticator::new(builder.build("otp", dispatch::BACKENDS));
+        let options = oath_authenticator::Options::new(
+            Location::Internal,
+            CustomStatus::ReverseHotpSuccess as u8,
+            CustomStatus::ReverseHotpError as u8,
+        );
+        let otp = oath_authenticator::Authenticator::new(
+            builder.build("otp", dispatch::BACKENDS),
+            options,
+        );
 
         Self { fido, admin, otp }
     }

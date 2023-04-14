@@ -3,8 +3,8 @@ use core::time::Duration;
 
 use flexiber::{Encodable, EncodableHeapless};
 use heapless_bytes::Bytes;
-use iso7816::{Data, Status};
 use iso7816::Status::SecurityStatusNotSatisfied;
+use iso7816::{Data, Status};
 use trussed::types::KeyId;
 use trussed::types::Location;
 use trussed::{client, syscall, try_syscall, types::PathBuf};
@@ -16,6 +16,7 @@ use crate::{
     command, ensure, oath,
     state::{CommandState, State},
     Command, ATTEMPT_COUNTER_DEFAULT_RETRIES, BACKEND_USER_PIN_ID, CTAPHID_MESSAGE_SIZE_LIMIT,
+    REQUIRED_DELAY_ON_FAILED_VERIFICATION,
 };
 
 /// The options for the authenticator app.
@@ -24,20 +25,27 @@ use crate::{
 pub struct Options {
     /// The storage location for the application data (default: internal).
     pub location: Location,
+
+    /// The custom status id to be set for the successful verification for the Reverse HOTP.
+    /// By design this should be animated as: blink green LED for 10 seconds, highest priority.
+    pub custom_status_reverse_hotp_success: u8,
+
+    /// The custom status id to be set for the failed verification for the Reverse HOTP.
+    /// By design this should be animated as: blink red LED infinite times, highest priority.
+    pub custom_status_reverse_hotp_error: u8,
 }
 
 impl Options {
-    /// Creates the default options.
-    pub const fn new() -> Self {
+    pub const fn new(
+        location: Location,
+        custom_status_reverse_hotp_success: u8,
+        custom_status_reverse_hotp_error: u8,
+    ) -> Self {
         Self {
-            location: Location::Internal,
+            location,
+            custom_status_reverse_hotp_success,
+            custom_status_reverse_hotp_error,
         }
-    }
-}
-
-impl Default for Options {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -166,8 +174,6 @@ impl AnswerToSelect {
     }
 }
 
-const REQUIRED_DELAY_ON_FAILED_VERIFICATION: Duration = Duration::from_secs(5);
-
 impl<T> Authenticator<T>
 where
     T: client::Client
@@ -182,11 +188,7 @@ where
         PathBuf::from("cred")
     }
 
-    pub fn new(trussed: T) -> Self {
-        Self::with_options(trussed, Default::default())
-    }
-
-    pub fn with_options(trussed: T, options: Options) -> Self {
+    pub fn new(trussed: T, options: Options) -> Self {
         Self {
             state: State::new(options.location),
             trussed,
@@ -1165,8 +1167,8 @@ where
         })
     }
 
-    fn clear_failed_verification_time(&mut self)  {
-        // Clear failed state on success
+    /// Clear failed Reverse HOTP verification state. Should be called on successful verification.
+    fn clear_failed_verification_time(&mut self) {
         self.state.runtime.last_failed_request = None;
     }
 
@@ -1177,28 +1179,35 @@ where
     }
 
     fn get_uptime(&mut self) -> Result<Duration> {
-        let uptime = try_syscall!( self.trussed.uptime() )
+        let uptime = try_syscall!(self.trussed.uptime())
             .map_err(|_| SecurityStatusNotSatisfied)?
             .uptime;
         Ok(uptime)
     }
 
     fn wink_bad(&mut self) {
-        // TODO blink red LED infinite times, highest priority
-        syscall!(self.trussed.wink(Duration::from_secs(1000)));
+        // Blink red LED infinite times, highest priority
+        warn!("Verification failed, calling critical error status");
+        syscall!(self
+            .trussed
+            .set_custom_status(self.options.custom_status_reverse_hotp_error));
     }
 
     fn wink_good(&mut self) {
-        // TODO blink green LED for 10 seconds, highest priority
-        syscall!(self.trussed.wink(Duration::from_secs(10)));
+        // Blink green LED for 10 seconds, highest priority
+        info!("Verification passed, calling success status");
+        syscall!(self
+            .trussed
+            .set_custom_status(self.options.custom_status_reverse_hotp_success));
     }
 
+    /// Deny request, if required time from the last one failed has not passed yet
+    /// Make brute-force attack slower.
     fn deny_if_too_soon_after_failure(&mut self) -> Result {
-        // Deny request, if required time from the last one failed has not passed yet
-        // Make brute-force attack slower.
         if let Some(lft) = self.state.runtime.last_failed_request {
             let uptime = self.get_uptime()?;
             if uptime.saturating_sub(lft) < REQUIRED_DELAY_ON_FAILED_VERIFICATION {
+                info!("Not enough time has passed since the last failed verification attempt. Rejecting request.");
                 return Err(Status::SecurityStatusNotSatisfied);
             }
         }
