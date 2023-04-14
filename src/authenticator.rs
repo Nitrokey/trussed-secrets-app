@@ -36,7 +36,6 @@ pub struct Options {
 }
 
 impl Options {
-    /// Creates the default options.
     pub const fn new(
         location: Location,
         custom_status_reverse_hotp_success: u8,
