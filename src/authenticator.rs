@@ -3,7 +3,7 @@ use core::time::Duration;
 
 use flexiber::{Encodable, EncodableHeapless};
 use heapless_bytes::Bytes;
-use iso7816::Status::SecurityStatusNotSatisfied;
+use iso7816::Status::{NotFound, SecurityStatusNotSatisfied};
 use iso7816::{Data, Status};
 use trussed::types::KeyId;
 use trussed::types::Location;
@@ -394,6 +394,8 @@ where
                 &self.filename_for_label(label),
                 _deletion_result
             );
+        } else {
+            return Err(NotFound);
         }
         Ok(())
     }
