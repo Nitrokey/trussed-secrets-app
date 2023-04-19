@@ -915,8 +915,10 @@ where
         const COUNTER_WINDOW_SIZE: u32 = 9;
 
         #[cfg(feature = "brute-force-delay")]
-        self.deny_if_too_soon_after_failure()?;
-        self.mark_failed_verification_time()?;
+        {
+            self.deny_if_too_soon_after_failure()?;
+            self.mark_failed_verification_time()?;
+        }
 
         let credential = self.load_credential(args.label).ok_or(Status::NotFound)?;
 
@@ -963,6 +965,7 @@ where
         };
 
         self.bump_counter_for_cred(&credential, found)?;
+        #[cfg(feature = "brute-force-delay")]
         self.clear_failed_verification_time();
         self.wink_good();
 
