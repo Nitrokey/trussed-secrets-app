@@ -73,4 +73,4 @@ required-features = ["ctaphid", "devel"]
 flexiber = { git = "https://github.com/Nitrokey/flexiber", tag = "0.1.1.nitrokey" }
 trussed = { git = "https://github.com/Nitrokey/trussed", rev = "52da9bb" }
 littlefs2 = { git =  "https://github.com/Nitrokey/littlefs2", tag = "v0.3.2-nitrokey-2" }
-trussed-auth = { git = "https://github.com/trussed-dev/trussed-auth/", rev = "v0.2.1" }
+trussed-auth = { git = "https://github.com/trussed-dev/trussed-auth/", rev = "refs/pull/21/head" }

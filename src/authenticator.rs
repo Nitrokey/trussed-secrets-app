@@ -5,8 +5,8 @@ use flexiber::{Encodable, EncodableHeapless};
 use heapless_bytes::Bytes;
 use iso7816::Status::{NotFound, SecurityStatusNotSatisfied};
 use iso7816::{Data, Status};
-use trussed::types::KeyId;
 use trussed::types::Location;
+use trussed::types::{KeyId, Message};
 use trussed::{client, syscall, try_syscall, types::PathBuf};
 
 use crate::command::{EncryptionKeyType, VerifyCode};
@@ -196,10 +196,11 @@ where
         }
     }
 
-    pub fn init(&mut self) {
+    pub fn init(&mut self) -> Result {
         if self.state.runtime.encryption_key_hardware.is_none() {
-            self.state.runtime.encryption_key_hardware = self._extension_get_hardware_key().ok();
+            self.state.runtime.encryption_key_hardware = Some(self._extension_get_hardware_key()?);
         }
+        Ok(())
     }
 
     pub fn respond<const C: usize, const R: usize>(
@@ -257,7 +258,7 @@ where
 
         // Allow all commands to be called without PIN verification
 
-        self.init();
+        self.init()?;
 
         // Process the request
         let result = match command {
@@ -1077,21 +1078,11 @@ where
     }
 
     fn _extension_get_hardware_key(&mut self) -> Result<KeyId> {
-        let password: &[u8] = "HARDWARE KEY".as_ref();
-        let pin_id = BACKEND_USER_PIN_ID + 1;
-        try_syscall!(self.trussed.set_pin(
-            pin_id,
-            Bytes::from_slice(password).unwrap(),
-            None,
-            true
-        ))
-        .ok();
-        let reply = try_syscall!(self.trussed.get_pin_key(
-            pin_id,
-            Bytes::from_slice(password).map_err(|_| iso7816::Status::IncorrectDataParameter)?
-        ))
+        let reply = try_syscall!(self
+            .trussed
+            .get_application_key(Message::from_slice("default secrets key".as_ref()).unwrap()))
         .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
-        reply.result.ok_or(iso7816::Status::VerificationFailed)
+        Ok(reply.key)
     }
 
     fn _extension_set_pin(&mut self, password: &[u8]) -> Result {
