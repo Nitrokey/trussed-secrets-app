@@ -354,6 +354,7 @@ where
     }
 
     fn reset(&mut self) -> Result {
+        // DESIGN Reset: always confirm with touch button
         self.user_present()?;
 
         // Run any structured cleanup we have
@@ -515,7 +516,10 @@ where
     }
 
     fn register(&mut self, register: command::Register<'_>) -> Result {
-        self.user_present()?;
+        // DESIGN Registration: require touch button if set on the credential, but not if the PIN was already checked
+        if register.credential.touch_required && register.credential.encryption_key_type != EncryptionKeyType::PinBased {
+            self.user_present()?;
+        }
 
         // info_now!("recv {:?}", &register);
 
@@ -653,7 +657,8 @@ where
             .load_credential(calculate.label)
             .ok_or(Status::NotFound)?;
 
-        if credential.touch_required {
+        // DESIGN Daily use: require touch button if set on the credential, but not if the PIN was already checked
+        if credential.touch_required && credential.key_type.unwrap_or_default() != EncryptionKeyType::PinBased {
             self.user_present()?;
         }
 
@@ -923,7 +928,8 @@ where
 
         let credential = self.load_credential(args.label).ok_or(Status::NotFound)?;
 
-        if credential.touch_required {
+        // DESIGN Daily use: require touch button if set on the credential, but not if the PIN was already checked
+        if credential.touch_required && credential.key_type.unwrap_or_default() != EncryptionKeyType::PinBased {
             self.user_present()?;
         }
 
@@ -1145,6 +1151,10 @@ where
 
         self._extension_logout()?;
 
+        // DESIGN Always ask for touch button confirmation before verifying PIN, to prevent
+        // non-intentional attempt counter use up
+        self.user_present()?;
+
         let command::VerifyPin { password } = verify_pin;
         // Returns error, if the PIN is not set, or incorrect. Otherwise returns the KeyId
         self.state.runtime.encryption_key = Some(self._extension_get_key_for_pin(password)?);
@@ -1161,6 +1171,7 @@ where
         if self._extension_is_pin_set()? {
             return Err(Status::SecurityStatusNotSatisfied);
         }
+        // DESIGN Set PIN: always confirm with touch button
         self.user_present()?;
 
         let command::SetPin { password } = set_pin;
@@ -1179,6 +1190,7 @@ where
         if !self._extension_is_pin_set()? {
             return Err(Status::SecurityStatusNotSatisfied);
         }
+        // DESIGN Change PIN: always confirm with touch button
         self.user_present()?;
 
         let command::ChangePin {
