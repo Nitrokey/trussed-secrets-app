@@ -258,7 +258,7 @@ where
 
         // Make sure the "remaining" state is cleared if the new command is sent
         // It will clear itself with the final packet sent
-        if !matches!(command, Command::SendRemaining){
+        if !matches!(command, Command::SendRemaining) {
             self.state.runtime.previously = None;
         }
 
@@ -347,8 +347,12 @@ where
         let mut credential: Credential =
             self.state.try_read_file(&mut self.trussed, filename).ok()?;
         // Set the default EncryptionKeyType as PinBased for backwards compatibility
-        // All new records should have it set as HardwareBased, if not overridden by user
-        credential.key_type = Some(credential.key_type.unwrap_or(EncryptionKeyType::PinBased));
+        // All the new records should have it set as HardwareBased, if not overridden by user
+        credential.encryption_key_type = Some(
+            credential
+                .encryption_key_type
+                .unwrap_or(EncryptionKeyType::default_for_loading_credential()),
+        );
 
         if label != credential.label.as_slice() {
             error_now!("Loaded credential label is different than expected. Aborting.");
@@ -522,7 +526,9 @@ where
 
     fn register(&mut self, register: command::Register<'_>) -> Result {
         // DESIGN Registration: require touch button if set on the credential, but not if the PIN was already checked
-        if register.credential.touch_required && register.credential.encryption_key_type != EncryptionKeyType::PinBased {
+        if register.credential.touch_required
+            && register.credential.encryption_key_type != EncryptionKeyType::PinBased
+        {
             self.user_present()?;
         }
 
@@ -549,7 +555,7 @@ where
             &mut self.trussed,
             filename,
             &credential,
-            credential.key_type,
+            credential.encryption_key_type,
         );
 
         if write_res.is_err() {
@@ -663,7 +669,10 @@ where
             .ok_or(Status::NotFound)?;
 
         // DESIGN Daily use: require touch button if set on the credential, but not if the PIN was already checked
-        if credential.touch_required && credential.key_type.unwrap_or_default() != EncryptionKeyType::PinBased {
+        // Safety: encryption_key_type should be set for credential during loading in load_credential
+        if credential.touch_required
+            && credential.encryption_key_type.unwrap() != EncryptionKeyType::PinBased
+        {
             self.user_present()?;
         }
 
@@ -934,7 +943,10 @@ where
         let credential = self.load_credential(args.label).ok_or(Status::NotFound)?;
 
         // DESIGN Daily use: require touch button if set on the credential, but not if the PIN was already checked
-        if credential.touch_required && credential.key_type.unwrap_or_default() != EncryptionKeyType::PinBased {
+        // Safety: encryption_key_type should be set for credential during loading in load_credential
+        if credential.touch_required
+            && credential.encryption_key_type.unwrap() != EncryptionKeyType::PinBased
+        {
             self.user_present()?;
         }
 
@@ -1033,7 +1045,7 @@ where
             &mut self.trussed,
             filename,
             &credential,
-            credential.key_type,
+            credential.encryption_key_type,
         )?;
 
         Ok(credential)

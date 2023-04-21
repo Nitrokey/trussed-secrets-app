@@ -33,7 +33,8 @@ pub struct Credential {
 
     #[serde(rename = "E")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub key_type: Option<EncryptionKeyType>,
+    // #[serde(default = "EncryptionKeyType::default_for_loading_credential")]
+    pub encryption_key_type: Option<EncryptionKeyType>,
 }
 
 impl Credential {
@@ -46,7 +47,7 @@ impl Credential {
             secret: ShortData::from_slice(credential.secret)?,
             touch_required: credential.touch_required,
             counter: credential.counter,
-            key_type: Some(credential.encryption_key_type),
+            encryption_key_type: Some(credential.encryption_key_type),
         })
     }
 }
