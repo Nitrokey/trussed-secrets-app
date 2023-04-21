@@ -291,15 +291,13 @@ where
         if self.state.runtime.encryption_key.is_some() {
             // Do not call automatic logout after these commands
             match command {
-                // Always allow to set PIN
-                Command::SetPin(_) => {}
                 // Always allow to verify PIN
                 Command::VerifyPin(_) => {}
-                // Protocol command to download the rest of the result
-                Command::SendRemaining => {}
                 _ => {
-                    debug_now!("Calling logout");
-                    self._extension_logout().ok();
+                    if self.state.runtime.previously.is_none() {
+                        debug_now!("Calling logout");
+                        self._extension_logout().ok();
+                    }
                 }
             }
         };
