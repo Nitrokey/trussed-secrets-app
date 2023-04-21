@@ -130,7 +130,7 @@ impl State {
             EncryptionKeyType::PinBased => self.runtime.encryption_key,
         };
         if key.is_none() {
-            error_now!(
+            warn_now!(
                 "No encryption key set in the cache for type {:?}",
                 encryption_key_type
             );

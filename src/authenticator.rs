@@ -256,8 +256,15 @@ where
         let command: Command = command.try_into()?;
         info_now!("{:?}", &command);
 
-        // Allow all commands to be called without PIN verification
+        // Make sure the "remaining" state is cleared if the new command is sent
+        // It will clear itself with the final packet sent
+        if !matches!(command, Command::SendRemaining){
+            self.state.runtime.previously = None;
+        }
 
+        // DESIGN Allow all commands to be called without PIN verification
+
+        // Lazy init: make sure hardware key is initialized
         self.init()?;
 
         // Process the request
@@ -291,7 +298,7 @@ where
         if self.state.runtime.encryption_key.is_some() {
             // Do not call automatic logout after these commands
             match command {
-                // Always allow to verify PIN
+                // Always leave PIN KEK after verify PIN
                 Command::VerifyPin(_) => {}
                 _ => {
                     if self.state.runtime.previously.is_none() {
