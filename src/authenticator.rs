@@ -71,7 +71,7 @@ impl Default for OathVersion {
         // OathVersion { major: 1, minor: 0, patch: 0}
         OathVersion {
             major: 4,
-            minor: 7,
+            minor: 10,
             patch: 0,
         }
     }
