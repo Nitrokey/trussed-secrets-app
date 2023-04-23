@@ -4,10 +4,11 @@ use iso7816::Status;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
+use cbor_smol::cbor_deserialize;
 use encrypted_container::EncryptedDataContainer;
 use trussed::types::Message;
 use trussed::{
-    cbor_deserialize, syscall, try_syscall,
+    syscall, try_syscall,
     types::{KeyId, Location, PathBuf},
 };
 
