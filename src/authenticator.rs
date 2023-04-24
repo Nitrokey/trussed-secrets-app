@@ -1122,8 +1122,8 @@ where
         Ok(())
     }
 
-    fn _debug_trussed_backend_error(e: trussed::Error, l: u32) -> iso7816::Status {
-        info_now!("Trussed backend error: {:?} (line {:?})", e, l);
+    fn _debug_trussed_backend_error(_e: trussed::Error, _l: u32) -> iso7816::Status {
+        info_now!("Trussed backend error: {:?} (line {:?})", _e, _l);
         iso7816::Status::UnspecifiedNonpersistentExecutionError
     }
 
