@@ -1,9 +1,11 @@
 use core::convert::TryInto;
+
+#[cfg(feature = "brute-force-delay")]
 use core::time::Duration;
 
 use flexiber::{Encodable, EncodableHeapless};
 use heapless_bytes::Bytes;
-use iso7816::Status::{NotFound, SecurityStatusNotSatisfied};
+use iso7816::Status::NotFound;
 use iso7816::{Data, Status};
 use trussed::types::Location;
 use trussed::types::{KeyId, Message};
@@ -16,8 +18,10 @@ use crate::{
     command, ensure, oath,
     state::{CommandState, State},
     Command, ATTEMPT_COUNTER_DEFAULT_RETRIES, BACKEND_USER_PIN_ID, CTAPHID_MESSAGE_SIZE_LIMIT,
-    REQUIRED_DELAY_ON_FAILED_VERIFICATION,
 };
+
+#[cfg(feature = "brute-force-delay")]
+use crate::REQUIRED_DELAY_ON_FAILED_VERIFICATION;
 
 /// The options for the authenticator app.
 #[derive(Clone, Copy, Debug)]
@@ -349,7 +353,8 @@ where
         // Set the default EncryptionKeyType as PinBased for backwards compatibility
         // All the new records should have it set as HardwareBased, if not overridden by user
         if credential.encryption_key_type.is_none() {
-            credential.encryption_key_type = Some(EncryptionKeyType::default_for_loading_credential());
+            credential.encryption_key_type =
+                Some(EncryptionKeyType::default_for_loading_credential());
         }
 
         if label != credential.label.as_slice() {
@@ -1228,19 +1233,22 @@ where
     }
 
     /// Clear failed Reverse HOTP verification state. Should be called on successful verification.
+    #[cfg(feature = "brute-force-delay")]
     fn clear_failed_verification_time(&mut self) {
         self.state.runtime.last_failed_request = None;
     }
 
+    #[cfg(feature = "brute-force-delay")]
     fn mark_failed_verification_time(&mut self) -> Result {
         let uptime = self.get_uptime()?;
         self.state.runtime.last_failed_request = Some(uptime);
         Ok(())
     }
 
+    #[cfg(feature = "brute-force-delay")]
     fn get_uptime(&mut self) -> Result<Duration> {
         let uptime = try_syscall!(self.trussed.uptime())
-            .map_err(|_| SecurityStatusNotSatisfied)?
+            .map_err(|_| iso7816::Status::SecurityStatusNotSatisfied)?
             .uptime;
         Ok(uptime)
     }
@@ -1263,6 +1271,7 @@ where
 
     /// Deny request, if required time from the last one failed has not passed yet
     /// Make brute-force attack slower.
+    #[cfg(feature = "brute-force-delay")]
     fn deny_if_too_soon_after_failure(&mut self) -> Result {
         if let Some(lft) = self.state.runtime.last_failed_request {
             let uptime = self.get_uptime()?;
