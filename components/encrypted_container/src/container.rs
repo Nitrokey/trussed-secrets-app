@@ -1,8 +1,11 @@
+use cbor_smol::{cbor_deserialize, cbor_serialize};
 use heapless_bytes::Bytes;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use trussed::types::{KeyId, Message};
-use trussed::{cbor_deserialize, cbor_serialize, try_syscall};
+use trussed::{
+    try_syscall,
+    types::{KeyId, Message},
+};
 
 /// Universal AEAD encrypted data container, using CBOR and Chacha8Poly1305
 ///
