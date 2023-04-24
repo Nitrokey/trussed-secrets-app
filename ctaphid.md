@@ -220,6 +220,32 @@ Options:
 ```
 
 
+## Authentication Requirements
+
+
+| Command         | Require Touch Button press | Require PIN Authentication | Unlocks PIN-based Encryption Key |
+|-----------------|----------------------------|----------------------------|----------------------------------|
+| Select          | No                         | No                         | No                               |
+| Calculate       | Yes*                       | No                         | No                               |
+| CalculateAll    | No                         | No                         | No                               |
+| Delete          | Yes                        | Yes*                       | No                               |
+| ListCredentials | No                         | Yes*                       | No                               |
+| Register        | Yes                        | Yes*                       | No                               |
+| Reset           | Yes                        | No                         | No                               |
+| VerifyPin       | No                         | -                          | Yes                              |
+| SetPin          | Yes                        | -                          | No                               |
+| ChangePin       | Yes                        | -                          | No                               |
+| VerifyCode      | Yes*                       | No                         | No                               |
+| SendRemaining   | No                         | No                         | No                               |
+
+
+Notes: 
+1. \* If credential was encrypted using PIN-based key, then verification with PIN through `VerifyPin()` is required to get
+access to it, otherwise it will be reported as not found. Similarly, PIN-encrypted credentials will not be listed 
+with `List` command until authenticated. `Delete` command require PIN for Credentials created with PIN-encryption.
+2. Credentials can be configured to be allowed for use only after touch button is pressed.
+3. \* Touch Button press is required for Credentials, which were created with such attribute. 
+   
 ## Further development
 
 Current solution does have a couple of limitations, which could be corrected in the further development:

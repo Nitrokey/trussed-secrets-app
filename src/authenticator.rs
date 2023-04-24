@@ -1,23 +1,27 @@
 use core::convert::TryInto;
+
+#[cfg(feature = "brute-force-delay")]
 use core::time::Duration;
 
 use flexiber::{Encodable, EncodableHeapless};
 use heapless_bytes::Bytes;
-use iso7816::Status::SecurityStatusNotSatisfied;
+use iso7816::Status::NotFound;
 use iso7816::{Data, Status};
-use trussed::types::KeyId;
 use trussed::types::Location;
+use trussed::types::{KeyId, Message};
 use trussed::{client, syscall, try_syscall, types::PathBuf};
 
-use crate::command::VerifyCode;
+use crate::command::{EncryptionKeyType, VerifyCode};
 use crate::credential::Credential;
 use crate::oath::Kind;
 use crate::{
     command, ensure, oath,
     state::{CommandState, State},
     Command, ATTEMPT_COUNTER_DEFAULT_RETRIES, BACKEND_USER_PIN_ID, CTAPHID_MESSAGE_SIZE_LIMIT,
-    REQUIRED_DELAY_ON_FAILED_VERIFICATION,
 };
+
+#[cfg(feature = "brute-force-delay")]
+use crate::REQUIRED_DELAY_ON_FAILED_VERIFICATION;
 
 /// The options for the authenticator app.
 #[derive(Clone, Copy, Debug)]
@@ -71,7 +75,7 @@ impl Default for OathVersion {
         // OathVersion { major: 1, minor: 0, patch: 0}
         OathVersion {
             major: 4,
-            minor: 7,
+            minor: 10,
             patch: 0,
         }
     }
@@ -196,6 +200,13 @@ where
         }
     }
 
+    pub fn init(&mut self) -> Result {
+        if self.state.runtime.encryption_key_hardware.is_none() {
+            self.state.runtime.encryption_key_hardware = Some(self._extension_get_hardware_key()?);
+        }
+        Ok(())
+    }
+
     pub fn respond<const C: usize, const R: usize>(
         &mut self,
         command: &iso7816::Command<C>,
@@ -245,30 +256,23 @@ where
         )?;
         ensure(class.channel() == Some(0), Status::ClassNotSupported)?;
 
-        // parse Iso7816Command as PivCommand
+        // parse Iso7816Command
         let command: Command = command.try_into()?;
         info_now!("{:?}", &command);
 
-        if !self.state.runtime.client_authorized {
-            match command {
-                Command::Select(_) => {}
-                #[cfg(feature = "challenge-response-auth")]
-                Command::Validate(_) => {}
-                Command::Reset => {}
-                // Always allow HOTP code verification
-                Command::VerifyCode(_) => {}
-                // Always allow to set PIN
-                Command::SetPin(_) => {}
-                // Always allow to verify PIN
-                Command::VerifyPin(_) => {}
-                // Protocol command to download the rest of the result
-                Command::SendRemaining => {}
-                // No need to call verify on that, since it requires original PIN anyway
-                Command::ChangePin(_) => {}
-                _ => return Err(Status::ConditionsOfUseNotSatisfied),
-            }
+        // Make sure the "remaining" state is cleared if the new command is sent
+        // It will clear itself with the final packet sent
+        if !matches!(command, Command::SendRemaining) {
+            self.state.runtime.previously = None;
         }
-        match command {
+
+        // DESIGN Allow all commands to be called without PIN verification
+
+        // Lazy init: make sure hardware key is initialized
+        self.init()?;
+
+        // Process the request
+        let result = match command {
             Command::Select(select) => self.select(select, reply),
             Command::ListCredentials => self.list_credentials(reply, None),
             Command::Register(register) => self.register(register),
@@ -291,7 +295,25 @@ where
 
             Command::SendRemaining => self.send_remaining(reply),
             _ => Err(Status::ConditionsOfUseNotSatisfied),
-        }
+        };
+
+        // Call logout after processing, so the PIN-based KEK would not be kept in the memory
+        // DESIGN -> Per-request authorization
+        if self.state.runtime.encryption_key.is_some() {
+            // Do not call automatic logout after these commands
+            match command {
+                // Always leave PIN KEK after verify PIN
+                Command::VerifyPin(_) => {}
+                _ => {
+                    if self.state.runtime.previously.is_none() {
+                        debug_now!("Calling logout");
+                        self._extension_logout().ok();
+                    }
+                }
+            }
+        };
+
+        result
     }
 
     fn select<const R: usize>(
@@ -326,7 +348,14 @@ where
     fn load_credential(&mut self, label: &[u8]) -> Option<Credential> {
         let filename = self.filename_for_label(label);
 
-        let credential: Credential = self.state.try_read_file(&mut self.trussed, filename).ok()?;
+        let mut credential: Credential =
+            self.state.try_read_file(&mut self.trussed, filename).ok()?;
+        // Set the default EncryptionKeyType as PinBased for backwards compatibility
+        // All the new records should have it set as HardwareBased, if not overridden by user
+        if credential.encryption_key_type.is_none() {
+            credential.encryption_key_type =
+                Some(EncryptionKeyType::default_for_loading_credential());
+        }
 
         if label != credential.label.as_slice() {
             error_now!("Loaded credential label is different than expected. Aborting.");
@@ -337,6 +366,7 @@ where
     }
 
     fn reset(&mut self) -> Result {
+        // DESIGN Reset: always confirm with touch button
         self.user_present()?;
 
         // Run any structured cleanup we have
@@ -356,9 +386,6 @@ where
     }
 
     fn delete(&mut self, delete: command::Delete<'_>) -> Result {
-        if !self.state.runtime.client_authorized {
-            return Err(Status::ConditionsOfUseNotSatisfied);
-        }
         debug_now!("{:?}", delete);
         // It seems tooling first lists all credentials, so the case of
         // delete being called on a non-existing label hardly occurs.
@@ -381,6 +408,8 @@ where
                 &self.filename_for_label(label),
                 _deletion_result
             );
+        } else {
+            return Err(NotFound);
         }
         Ok(())
     }
@@ -406,9 +435,6 @@ where
         reply: &mut Data<R>,
         file_index: Option<usize>,
     ) -> Result {
-        if !self.state.runtime.client_authorized && self.state.runtime.previously.is_none() {
-            return Err(Status::ConditionsOfUseNotSatisfied);
-        }
         // info_now!("recv ListCredentials");
         // return Ok(Default::default());
         // 72 13 21
@@ -452,16 +478,18 @@ where
         };
 
         let mut file_index = file_index;
-        while let Some(credential) = maybe_credential {
-            // Try to serialize, abort if not succeeded
-            let current_reply_bytes_count = reply.len();
-            let res = Self::try_to_serialize_credential_for_list(&credential, reply);
-            if res.is_err() {
-                // Revert reply vector to the last good size, removing debris from the failed
-                // serialization
-                reply.truncate(current_reply_bytes_count);
-                return Err(Status::MoreAvailable(0xFF));
-            }
+        loop {
+            if let Some(credential) = maybe_credential {
+                // Try to serialize, abort if does not fit into the reply buffer
+                let current_reply_bytes_count = reply.len();
+                let res = Self::try_to_serialize_credential_for_list(&credential, reply);
+                if res.is_err() {
+                    // Revert reply vector to the last good size, removing debris from the failed
+                    // serialization
+                    reply.truncate(current_reply_bytes_count);
+                    return Err(Status::MoreAvailable(0xFF));
+                }
+            };
 
             // keep track, in case we need continuation
             file_index += 1;
@@ -469,7 +497,9 @@ where
 
             // check if there's more
             maybe_credential = match syscall!(self.trussed.read_dir_files_next()).data {
-                None => None,
+                // no more files, break the loop and return
+                None => break,
+                // we do not have the right key, continue
                 Some(c) => self.state.decrypt_content(&mut self.trussed, c).ok(),
             };
         }
@@ -498,13 +528,16 @@ where
     }
 
     fn register(&mut self, register: command::Register<'_>) -> Result {
-        self.user_present()?;
-
-        if !self.state.runtime.client_authorized {
-            return Err(Status::ConditionsOfUseNotSatisfied);
+        // DESIGN Registration: require touch button if set on the credential, but not if the PIN was already checked
+        if register.credential.touch_required
+            && register.credential.encryption_key_type != EncryptionKeyType::PinBased
+        {
+            self.user_present()?;
         }
+
         // info_now!("recv {:?}", &register);
 
+        // Allow to overwrite existing credentials by default
         // 0. ykman does not call delete before register, so we need to speculatively
         // delete the credential (the credential file would be replaced, but we need
         // to delete the secret key).
@@ -521,9 +554,12 @@ where
         let filename = self.filename_for_label(&credential.label);
 
         // 3. Serialize the credential (implicitly) and store it
-        let write_res = self
-            .state
-            .try_write_file(&mut self.trussed, filename, &credential);
+        let write_res = self.state.try_write_file(
+            &mut self.trussed,
+            filename,
+            &credential,
+            credential.encryption_key_type,
+        );
 
         if write_res.is_err() {
             // 1. Try to delete the empty file, ignore errors
@@ -629,16 +665,17 @@ where
         calculate: command::Calculate<'_>,
         reply: &mut Data<R>,
     ) -> Result {
-        if !self.state.runtime.client_authorized {
-            return Err(Status::ConditionsOfUseNotSatisfied);
-        }
         // info_now!("recv {:?}", &calculate);
 
         let credential = self
             .load_credential(calculate.label)
             .ok_or(Status::NotFound)?;
 
-        if credential.touch_required {
+        // DESIGN Daily use: require touch button if set on the credential, but not if the PIN was already checked
+        // Safety: encryption_key_type should be set for credential during loading in load_credential
+        if credential.touch_required
+            && credential.encryption_key_type.unwrap() != EncryptionKeyType::PinBased
+        {
             self.user_present()?;
         }
 
@@ -776,9 +813,6 @@ where
     fn set_password(&mut self, set_password: command::SetPassword<'_>) -> Result {
         self.user_present()?;
 
-        if !self.state.runtime.client_authorized {
-            return Err(Status::ConditionsOfUseNotSatisfied);
-        }
         // when there is no password set:
         // APDU: 00 A4 04 00 07 (SELECT)
         //                      A0 00 00 05 27 21 01
@@ -902,12 +936,20 @@ where
     /// Device will stop verifying the HOTP codes in case, when the difference between the host and on-device counters will be greater or equal to 10.
     fn verify_code<const R: usize>(&mut self, args: VerifyCode, reply: &mut Data<{ R }>) -> Result {
         const COUNTER_WINDOW_SIZE: u32 = 9;
-        self.deny_if_too_soon_after_failure()?;
-        self.mark_failed_verification_time()?;
+
+        #[cfg(feature = "brute-force-delay")]
+        {
+            self.deny_if_too_soon_after_failure()?;
+            self.mark_failed_verification_time()?;
+        }
 
         let credential = self.load_credential(args.label).ok_or(Status::NotFound)?;
 
-        if credential.touch_required {
+        // DESIGN Daily use: require touch button if set on the credential, but not if the PIN was already checked
+        // Safety: encryption_key_type should be set for credential during loading in load_credential
+        if credential.touch_required
+            && credential.encryption_key_type.unwrap() != EncryptionKeyType::PinBased
+        {
             self.user_present()?;
         }
 
@@ -950,6 +992,7 @@ where
         };
 
         self.bump_counter_for_cred(&credential, found)?;
+        #[cfg(feature = "brute-force-delay")]
         self.clear_failed_verification_time();
         self.wink_good();
 
@@ -1001,8 +1044,12 @@ where
         );
         // save credential back, with the updated counter
         let filename = self.filename_for_label(&credential.label);
-        self.state
-            .try_write_file(&mut self.trussed, filename, &credential)?;
+        self.state.try_write_file(
+            &mut self.trussed,
+            filename,
+            &credential,
+            credential.encryption_key_type,
+        )?;
 
         Ok(credential)
     }
@@ -1032,6 +1079,11 @@ where
     fn _extension_pin_factory_reset(&mut self) -> Result {
         self._extension_logout()?;
 
+        if let Some(key) = self.state.runtime.encryption_key_hardware.take() {
+            try_syscall!(self.trussed.delete(key))
+                .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
+        }
+
         try_syscall!(self.trussed.delete_all_pins())
             .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
 
@@ -1051,6 +1103,14 @@ where
         }
     }
 
+    fn _extension_get_hardware_key(&mut self) -> Result<KeyId> {
+        let reply = try_syscall!(self
+            .trussed
+            .get_application_key(Message::from_slice("default secrets key".as_ref()).unwrap()))
+        .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
+        Ok(reply.key)
+    }
+
     fn _extension_set_pin(&mut self, password: &[u8]) -> Result {
         try_syscall!(self.trussed.set_pin(
             BACKEND_USER_PIN_ID,
@@ -1062,8 +1122,8 @@ where
         Ok(())
     }
 
-    fn _debug_trussed_backend_error(e: trussed::Error, l: u32) -> iso7816::Status {
-        info_now!("Trussed backend error: {:?} (line {:?})", e, l);
+    fn _debug_trussed_backend_error(_e: trussed::Error, _l: u32) -> iso7816::Status {
+        info_now!("Trussed backend error: {:?} (line {:?})", _e, _l);
         iso7816::Status::UnspecifiedNonpersistentExecutionError
     }
 
@@ -1111,6 +1171,10 @@ where
 
         self._extension_logout()?;
 
+        // DESIGN Always ask for touch button confirmation before verifying PIN, to prevent
+        // non-intentional attempt counter use up
+        self.user_present()?;
+
         let command::VerifyPin { password } = verify_pin;
         // Returns error, if the PIN is not set, or incorrect. Otherwise returns the KeyId
         self.state.runtime.encryption_key = Some(self._extension_get_key_for_pin(password)?);
@@ -1127,6 +1191,7 @@ where
         if self._extension_is_pin_set()? {
             return Err(Status::SecurityStatusNotSatisfied);
         }
+        // DESIGN Set PIN: always confirm with touch button
         self.user_present()?;
 
         let command::SetPin { password } = set_pin;
@@ -1145,6 +1210,7 @@ where
         if !self._extension_is_pin_set()? {
             return Err(Status::SecurityStatusNotSatisfied);
         }
+        // DESIGN Change PIN: always confirm with touch button
         self.user_present()?;
 
         let command::ChangePin {
@@ -1154,7 +1220,6 @@ where
 
         self._extension_change_pin(password, new_password)
             .map_err(|_| Status::VerificationFailed)?;
-        self.state.runtime.client_newly_authorized = true;
         Ok(())
     }
 
@@ -1168,19 +1233,22 @@ where
     }
 
     /// Clear failed Reverse HOTP verification state. Should be called on successful verification.
+    #[cfg(feature = "brute-force-delay")]
     fn clear_failed_verification_time(&mut self) {
         self.state.runtime.last_failed_request = None;
     }
 
+    #[cfg(feature = "brute-force-delay")]
     fn mark_failed_verification_time(&mut self) -> Result {
         let uptime = self.get_uptime()?;
         self.state.runtime.last_failed_request = Some(uptime);
         Ok(())
     }
 
+    #[cfg(feature = "brute-force-delay")]
     fn get_uptime(&mut self) -> Result<Duration> {
         let uptime = try_syscall!(self.trussed.uptime())
-            .map_err(|_| SecurityStatusNotSatisfied)?
+            .map_err(|_| iso7816::Status::SecurityStatusNotSatisfied)?
             .uptime;
         Ok(uptime)
     }
@@ -1203,6 +1271,7 @@ where
 
     /// Deny request, if required time from the last one failed has not passed yet
     /// Make brute-force attack slower.
+    #[cfg(feature = "brute-force-delay")]
     fn deny_if_too_soon_after_failure(&mut self) -> Result {
         if let Some(lft) = self.state.runtime.last_failed_request {
             let uptime = self.get_uptime()?;

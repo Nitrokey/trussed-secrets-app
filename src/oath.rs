@@ -76,6 +76,7 @@ pub fn combine(kind: Kind, algorithm: Algorithm) -> u8 {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Properties {
     RequireTouch = 0x02,
+    PINEncrypt = 0x04,
 }
 
 #[repr(u8)]
