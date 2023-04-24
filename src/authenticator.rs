@@ -348,11 +348,9 @@ where
             self.state.try_read_file(&mut self.trussed, filename).ok()?;
         // Set the default EncryptionKeyType as PinBased for backwards compatibility
         // All the new records should have it set as HardwareBased, if not overridden by user
-        credential.encryption_key_type = Some(
-            credential
-                .encryption_key_type
-                .unwrap_or(EncryptionKeyType::default_for_loading_credential()),
-        );
+        if credential.encryption_key_type.is_none() {
+            credential.encryption_key_type = Some(EncryptionKeyType::default_for_loading_credential());
+        }
 
         if label != credential.label.as_slice() {
             error_now!("Loaded credential label is different than expected. Aborting.");

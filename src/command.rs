@@ -459,13 +459,6 @@ impl EncryptionKeyType {
     }
 }
 
-impl Default for EncryptionKeyType {
-    fn default() -> Self {
-        // For backwards compatibility, the default
-        Self::default_for_loading_credential()
-    }
-}
-
 impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
     type Error = iso7816::Status;
     fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
