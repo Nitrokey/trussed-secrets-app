@@ -1,4 +1,5 @@
 use crate::command::EncryptionKeyType;
+use crate::oath::{Algorithm, Kind};
 use crate::{command, oath};
 use serde::{Deserialize, Serialize};
 use trussed::types::ShortData;
@@ -35,19 +36,42 @@ pub struct Credential {
     #[serde(skip_serializing_if = "Option::is_none")]
     // #[serde(default = "EncryptionKeyType::default_for_loading_credential")]
     pub encryption_key_type: Option<EncryptionKeyType>,
+
+    // extract this one to a separate struct?
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "PL")]
+    pub login: Option<ShortData>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "PP")]
+    pub password: Option<ShortData>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "PM")]
+    pub metadata: Option<ShortData>,
 }
 
 impl Credential {
     pub fn try_from(credential: &command::Credential) -> Result<Self, ()> {
         Ok(Self {
             label: ShortData::from_slice(credential.label)?,
-            kind: credential.kind,
-            algorithm: credential.algorithm,
+            kind: credential.kind.unwrap_or(Kind::Hotp),
+            algorithm: credential.algorithm.unwrap_or(Algorithm::Sha1),
             digits: credential.digits,
-            secret: ShortData::from_slice(credential.secret)?,
+            secret: ShortData::from_slice(credential.secret.unwrap_or_default())?,
             touch_required: credential.touch_required,
             counter: credential.counter,
             encryption_key_type: Some(credential.encryption_key_type),
+
+            login: credential
+                .login
+                .map(|x| ShortData::from_slice(x).unwrap_or_default()),
+            password: credential
+                .password
+                .map(|x| ShortData::from_slice(x).unwrap_or_default()),
+            metadata: credential
+                .metadata
+                .map(|x| ShortData::from_slice(x).unwrap_or_default()),
         })
     }
 }
