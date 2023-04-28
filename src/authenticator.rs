@@ -749,7 +749,7 @@ where
                 return Err(Status::SecurityStatusNotSatisfied);
             }
             _ => {
-                return Err(Status::UnspecifiedPersistentExecutionError);
+                return Err(Status::ConditionsOfUseNotSatisfied);
             }
         };
 
