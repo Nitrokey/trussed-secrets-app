@@ -1,4 +1,5 @@
 use core::convert::TryFrom;
+use iso7816::Status;
 
 use serde::{Deserialize, Serialize};
 
@@ -88,7 +89,8 @@ pub enum Kind {
     Hotp = 0x10,
     Totp = 0x20,
     HotpReverse = 0x30,
-    NotSet = 0x40,
+    Hmac = 0x40,
+    NotSet = 0xF0,
 }
 
 impl TryFrom<u8> for Kind {
@@ -98,7 +100,8 @@ impl TryFrom<u8> for Kind {
             0x10 => Kind::Hotp,
             0x20 => Kind::Totp,
             0x30 => Kind::HotpReverse,
-            0x40 => Kind::NotSet,
+            0x40 => Kind::Hmac,
+            0xF0 => Kind::NotSet,
             _ => return Err(Self::Error::IncorrectDataParameter),
         })
     }
@@ -113,6 +116,65 @@ pub fn combine(kind: Kind, algorithm: Algorithm) -> u8 {
 pub enum Properties {
     RequireTouch = 0x02,
     PINEncrypt = 0x04,
+}
+
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum YKInstruction {
+    ApiRequest = 0x01,
+    Status = 0x03,
+}
+
+impl TryFrom<u8> for YKInstruction {
+    type Error = iso7816::Status;
+    fn try_from(byte: u8) -> Result<Self, Self::Error> {
+        use YKInstruction::*;
+        Ok(match byte {
+            0x01 => ApiRequest,
+            0x03 => Status,
+            _ => return Err(Self::Error::InstructionNotSupportedOrInvalid),
+        })
+    }
+}
+
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum YKCommand {
+    GetSerial = 0x10,
+    HmacSlot1 = 0x30,
+    HmacSlot2 = 0x38,
+}
+
+impl TryFrom<u8> for YKCommand {
+    type Error = Status;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        use YKCommand::*;
+        Ok(match value {
+            0x10 => GetSerial,
+            0x30 => HmacSlot1,
+            0x38 => HmacSlot2,
+            _ => return Err(Status::IncorrectP1OrP2Parameter),
+        })
+    }
+}
+
+impl From<YKCommand> for u8 {
+    fn from(val: YKCommand) -> Self {
+        val.as_u8()
+    }
+}
+
+impl YKCommand {
+    pub fn as_u8(&self) -> u8 {
+        *self as u8
+    }
+}
+
+impl PartialEq<u8> for YKCommand {
+    fn eq(&self, other: &u8) -> bool {
+        *self as u8 == *other
+    }
 }
 
 #[repr(u8)]
