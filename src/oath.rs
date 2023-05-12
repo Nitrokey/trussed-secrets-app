@@ -25,6 +25,40 @@ pub enum Tag {
     Password = 0x80,
     NewPassword = 0x81,
     PINCounter = 0x82,
+
+    PwsLogin = 0x83,
+    PwsPassword = 0x84,
+    PwsMetadata = 0x85,
+    // Remember to update try_from below when adding new tags
+}
+
+impl TryFrom<u8> for Tag {
+    type Error = iso7816::Status;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        Ok(match value {
+            0x71 => Tag::Name,
+            0x72 => Tag::NameList,
+            0x73 => Tag::Key,
+            0x74 => Tag::Challenge,
+            0x75 => Tag::Response,
+
+            0x77 => Tag::Hotp,
+            0x78 => Tag::Property,
+            0x79 => Tag::Version,
+            0x7a => Tag::InitialMovingFactor,
+            0x7b => Tag::Algorithm,
+            0x7c => Tag::Touch,
+
+            0x81 => Tag::NewPassword,
+            0x82 => Tag::PINCounter,
+
+            0x83 => Tag::PwsLogin,
+            0x84 => Tag::PwsPassword,
+            0x85 => Tag::PwsMetadata,
+            _ => return Err(Self::Error::IncorrectDataParameter),
+        })
+    }
 }
 
 #[repr(u8)]
@@ -54,6 +88,7 @@ pub enum Kind {
     Hotp = 0x10,
     Totp = 0x20,
     HotpReverse = 0x30,
+    NotSet = 0x40,
 }
 
 impl TryFrom<u8> for Kind {
@@ -63,6 +98,7 @@ impl TryFrom<u8> for Kind {
             0x10 => Kind::Hotp,
             0x20 => Kind::Totp,
             0x30 => Kind::HotpReverse,
+            0x40 => Kind::NotSet,
             _ => return Err(Self::Error::IncorrectDataParameter),
         })
     }
@@ -96,6 +132,7 @@ pub enum Instruction {
     VerifyPIN = 0xb2,
     ChangePIN = 0xb3,
     SetPIN = 0xb4,
+    GetCredential = 0xb5,
 }
 
 impl TryFrom<u8> for Instruction {
@@ -116,6 +153,7 @@ impl TryFrom<u8> for Instruction {
             0xb2 => VerifyPIN,
             0xb3 => ChangePIN,
             0xb4 => SetPIN,
+            0xb5 => GetCredential,
             _ => return Err(Self::Error::InstructionNotSupportedOrInvalid),
         })
     }

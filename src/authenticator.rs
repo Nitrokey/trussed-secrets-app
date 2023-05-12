@@ -5,7 +5,7 @@ use core::time::Duration;
 
 use flexiber::{Encodable, EncodableHeapless};
 use heapless_bytes::Bytes;
-use iso7816::Status::NotFound;
+use iso7816::Status::{NotFound, UnspecifiedNonpersistentExecutionError};
 use iso7816::{Data, Status};
 use trussed::types::Location;
 use trussed::types::{KeyId, Message};
@@ -277,6 +277,7 @@ where
             Command::ListCredentials => self.list_credentials(reply, None),
             Command::Register(register) => self.register(register),
             Command::Calculate(calculate) => self.calculate(calculate, reply),
+            Command::GetCredential(get) => self.get_credential(get, reply),
             #[cfg(feature = "calculate-all")]
             Command::CalculateAll(calculate_all) => self.calculate_all(calculate_all, reply),
             Command::Delete(delete) => self.delete(delete),
@@ -660,6 +661,55 @@ where
         Ok(())
     }
 
+    fn try_to_serialize_credential_for_get_credential<const R: usize>(
+        credential: Credential,
+        reply: &mut Data<R>,
+    ) -> core::result::Result<(), u8> {
+        reply.push(oath::Tag::Property as u8)?;
+        reply.push(1)?;
+        reply.push(oath::combine(credential.kind, credential.algorithm))?;
+
+        for (tag, field) in &[
+            (oath::Tag::Name, Some(credential.label)),
+            (oath::Tag::PwsLogin, credential.login),
+            (oath::Tag::PwsPassword, credential.password),
+            (oath::Tag::PwsMetadata, credential.metadata),
+        ] {
+            if let Some(value) = field {
+                reply.push(*tag as u8)?;
+                reply.push((value.len()) as u8)?;
+                reply.extend_from_slice(&value).map_err(|_| 0)?;
+            }
+            if reply.len() > CTAPHID_MESSAGE_SIZE_LIMIT {
+                // Finish early due to the usbd-ctaphid message size limit
+                return Err(1);
+            }
+        }
+        Ok(())
+    }
+
+    fn get_credential<const R: usize>(
+        &mut self,
+        get_credential_req: command::GetCredential<'_>,
+        reply: &mut Data<R>,
+    ) -> Result {
+        let credential = self
+            .load_credential(get_credential_req.label)
+            .ok_or(Status::NotFound)?;
+
+        // DESIGN Daily use: require touch button if set on the credential, but not if the PIN was already checked
+        // Safety: encryption_key_type should be set for credential during loading in load_credential
+        if credential.touch_required
+            && credential.encryption_key_type.unwrap() != EncryptionKeyType::PinBased
+        {
+            self.user_present()?;
+        }
+
+        Self::try_to_serialize_credential_for_get_credential(credential, reply)
+            .map_err(|_| UnspecifiedNonpersistentExecutionError)?;
+        Ok(())
+    }
+
     fn calculate<const R: usize>(
         &mut self,
         calculate: command::Calculate<'_>,
@@ -697,6 +747,9 @@ where
             Kind::HotpReverse => {
                 // This credential kind should never be access through calculate()
                 return Err(Status::SecurityStatusNotSatisfied);
+            }
+            _ => {
+                return Err(Status::ConditionsOfUseNotSatisfied);
             }
         };
 

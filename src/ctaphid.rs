@@ -1,4 +1,4 @@
-use crate::Authenticator;
+use crate::{Authenticator, CTAPHID_MESSAGE_SIZE_LIMIT};
 use ctaphid_dispatch::app::{self, Command as HidCommand, Message};
 use ctaphid_dispatch::command::VendorCommand;
 use iso7816::Status;
@@ -24,7 +24,7 @@ where
         input_data: &Message,
         response: &mut Message,
     ) -> app::AppResult {
-        const MAX_COMMAND_LENGTH: usize = 255;
+        const MAX_COMMAND_LENGTH: usize = CTAPHID_MESSAGE_SIZE_LIMIT;
         match command {
             HidCommand::Vendor(OTP_CCID) => {
                 let arr: [u8; 2] = Status::Success.into();

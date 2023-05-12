@@ -5,8 +5,8 @@ use iso7816::Status;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use cbor_smol::cbor_deserialize;
 use crate::command::EncryptionKeyType;
+use cbor_smol::cbor_deserialize;
 use encrypted_container::EncryptedDataContainer;
 use trussed::types::Message;
 use trussed::{

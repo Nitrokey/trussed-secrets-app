@@ -1,8 +1,10 @@
 use core::convert::{TryFrom, TryInto};
+use flexiber::{SimpleTag, TagLike};
 use serde::{Deserialize, Serialize};
 
 use iso7816::{Data, Status};
 
+use crate::oath::Tag;
 use crate::{ensure, oath};
 
 const FAILED_PARSING_ERROR: Status = iso7816::Status::IncorrectDataParameter;
@@ -39,6 +41,8 @@ pub enum Command<'l> {
     VerifyCode(VerifyCode<'l>),
     /// Send remaining data in the buffer
     SendRemaining,
+    /// Get Credential data
+    GetCredential(GetCredential<'l>),
 }
 
 /// TODO: change into enum
@@ -215,6 +219,28 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for SetPin<'l> {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct GetCredential<'l> {
+    pub label: &'l [u8],
+}
+
+impl<'l, const C: usize> TryFrom<&'l Data<C>> for GetCredential<'l> {
+    type Error = Status;
+    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
+        use flexiber::TaggedSlice;
+        let mut decoder = flexiber::Decoder::new(data);
+
+        let first: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
+        ensure(
+            first.tag() == (oath::Tag::Name as u8).try_into().unwrap(),
+            FAILED_PARSING_ERROR,
+        )?;
+        let label = first.as_bytes();
+
+        Ok(GetCredential { label })
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ChangePin<'l> {
     pub password: &'l [u8],
     pub new_password: &'l [u8],
@@ -365,8 +391,8 @@ pub struct Register<'l> {
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub struct Credential<'l> {
     pub label: &'l [u8],
-    pub kind: oath::Kind,
-    pub algorithm: oath::Algorithm,
+    pub kind: Option<oath::Kind>,
+    pub algorithm: Option<oath::Algorithm>,
     pub digits: u8,
     /// What we get here (inspecting the client app) may not be the raw K, but K' in HMAC lingo,
     /// i.e., If secret.len() < block size (64B for Sha1/Sha256, 128B for Sha512),
@@ -379,10 +405,14 @@ pub struct Credential<'l> {
     /// at least 128 bits.  This document RECOMMENDs a shared secret length of 160 bits."
     ///
     /// Meanwhile, the client app just pads up to 14B :)
-    pub secret: &'l [u8],
+    pub secret: Option<&'l [u8]>,
     pub touch_required: bool,
     pub encryption_key_type: EncryptionKeyType,
     pub counter: Option<u32>,
+
+    pub login: Option<&'l [u8]>,
+    pub password: Option<&'l [u8]>,
+    pub metadata: Option<&'l [u8]>,
 }
 
 impl core::fmt::Debug for Credential<'_> {
@@ -398,9 +428,25 @@ impl core::fmt::Debug for Credential<'_> {
             .field("kind", &self.kind)
             .field("alg", &self.algorithm)
             .field("digits", &self.digits)
-            .field("secret", &hex_str!(&self.secret, 4))
+            .field("secret", &hex_str!(&self.secret.unwrap_or_default(), 4))
             .field("touch", &self.touch_required)
+            .field("encryption", &self.encryption_key_type)
             .field("counter", &self.counter)
+            .field(
+                "login",
+                &core::str::from_utf8(self.login.unwrap_or_default())
+                    .unwrap_or("invalid UTF8 login"),
+            )
+            .field(
+                "password",
+                &core::str::from_utf8(self.password.unwrap_or_default())
+                    .unwrap_or("invalid UTF8 password"),
+            )
+            .field(
+                "metadata",
+                &core::str::from_utf8(self.metadata.unwrap_or_default())
+                    .unwrap_or("invalid UTF8 metadata"),
+            )
             .finish()
     }
 }
@@ -459,10 +505,31 @@ impl EncryptionKeyType {
     }
 }
 
+impl TryFrom<oath::Tag> for SimpleTag {
+    type Error = iso7816::Status;
+
+    fn try_from(value: Tag) -> Result<Self, Self::Error> {
+        SimpleTag::try_from(value as u8)
+            .map_err(|_| iso7816::Status::UnspecifiedPersistentExecutionError)
+    }
+}
+
+impl TryFrom<SimpleTag> for oath::Tag {
+    type Error = iso7816::Status;
+
+    fn try_from(value: SimpleTag) -> Result<Self, Self::Error> {
+        Tag::try_from(value.embedding().number as u8)
+            .map_err(|_| iso7816::Status::UnspecifiedPersistentExecutionError)
+    }
+}
+
 impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
     type Error = iso7816::Status;
+
     fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
-        use flexiber::{Decodable, TagLike};
+        // All fields of the OTP Credential are obligatory
+        // The PWS entries are optional
+        use flexiber::Decodable;
         type TaggedSlice<'a> = flexiber::TaggedSlice<'a, flexiber::SimpleTag>;
         let mut decoder = flexiber::Decoder::new(data);
 
@@ -473,6 +540,8 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
             FAILED_PARSING_ERROR,
         )?;
         let label = first.as_bytes();
+
+        info_now!("parsed label {:?}", &label);
 
         // then come (kind,algorithm,digits) and the actual secret (somewhat massaged)
         let second: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
@@ -486,13 +555,14 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
         };
         let (secret_header, secret) = second.as_bytes().split_at(2);
 
+        info_now!("parsed secret {:?}", &secret);
+
         let kind: oath::Kind = secret_header[0].try_into()?;
         let algorithm: oath::Algorithm = secret_header[0].try_into()?;
         let digits = secret_header[1];
 
         let maybe_properties: Option<Properties> =
             decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
-        // info_now!("maybe_properties: {:?}", &maybe_properties);
 
         let touch_required = maybe_properties
             .map(|properties| {
@@ -500,6 +570,8 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
                 properties.touch_required()
             })
             .unwrap_or(false);
+
+        info_now!("parsed attributes");
 
         let encryption_key_type = match maybe_properties
             .map(|properties| properties.pin_encrypted())
@@ -512,7 +584,6 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
         let mut counter = None;
         // kind::Hotp and valid u32 starting counter should be more tightly tied together on a
         // type level
-        // if kind == oath::Kind::Hotp {
         if matches!(kind, oath::Kind::Hotp | oath::Kind::HotpReverse) {
             // when the counter is not specified or set to zero, ykman does not send it
             counter = Some(0);
@@ -527,7 +598,11 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
             debug_now!("counter set to {:?}", &counter);
         }
 
-        let credential = Credential {
+        let kind = Some(kind);
+        let algorithm = Some(algorithm);
+        let secret = Some(secret);
+
+        let mut credential = Credential {
             label,
             kind,
             algorithm,
@@ -536,7 +611,42 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
             touch_required,
             encryption_key_type,
             counter,
+            // To be filled below
+            login: None,
+            password: None,
+            metadata: None,
         };
+
+        let mut next_decoded: Option<TaggedSlice> = decoder.decode().ok();
+        while let Some(next) = next_decoded {
+            let tag = next.tag().embedding().number as u8;
+            let tag = oath::Tag::try_from(tag).unwrap();
+            let tag_data = next.as_bytes();
+
+            match tag {
+                // Following should be caught before this loop
+                // Tag::Name => {},
+                // Tag::Key => {}
+                // Tag::Property => {}
+                // Tag::InitialMovingFactor => {}
+                // Tag::Algorithm => {}
+                // Tag::Touch => {}
+                Tag::PwsLogin => {
+                    credential.login = Some(tag_data);
+                }
+                Tag::PwsPassword => {
+                    credential.password = Some(tag_data);
+                }
+                Tag::PwsMetadata => {
+                    credential.metadata = Some(tag_data);
+                }
+                _ => {
+                    // Unmatched tags should return error
+                    return Err(Status::IncorrectDataParameter);
+                }
+            }
+            next_decoded = decoder.decode().ok();
+        }
 
         Ok(Register { credential })
     }
@@ -617,6 +727,9 @@ impl<'l, const C: usize> TryFrom<&'l iso7816::Command<C>> for Command<'l> {
                 }
                 (0x00, oath::Instruction::SetPIN, 0x00, 0x00) => {
                     Self::SetPin(SetPin::try_from(data)?)
+                }
+                (0x00, oath::Instruction::GetCredential, 0x00, 0x00) => {
+                    Self::GetCredential(GetCredential::try_from(data)?)
                 }
                 (0x00, oath::Instruction::SendRemaining, 0x00, 0x00) => Self::SendRemaining,
                 _ => return Err(Status::InstructionNotSupportedOrInvalid),
