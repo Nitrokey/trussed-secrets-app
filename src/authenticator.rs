@@ -778,9 +778,6 @@ where
             }
             _ => {
                 // This credential kind should never be accessed through calculate()
-                return Err(Status::SecurityStatusNotSatisfied);
-            }
-            _ => {
                 return Err(Status::ConditionsOfUseNotSatisfied);
             }
         };
