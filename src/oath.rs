@@ -30,6 +30,8 @@ pub enum Tag {
     PwsLogin = 0x83,
     PwsPassword = 0x84,
     PwsMetadata = 0x85,
+
+    SerialNumber = 0x8F,
     // Remember to update try_from below when adding new tags
 }
 
@@ -57,6 +59,7 @@ impl TryFrom<u8> for Tag {
             0x83 => Tag::PwsLogin,
             0x84 => Tag::PwsPassword,
             0x85 => Tag::PwsMetadata,
+            0x8F => Tag::SerialNumber,
             _ => return Err(Self::Error::IncorrectDataParameter),
         })
     }
