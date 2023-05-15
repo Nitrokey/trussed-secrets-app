@@ -235,5 +235,5 @@ impl State {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CommandState {
-    ListCredentials(usize),
+    ListCredentials(usize, u8),
 }

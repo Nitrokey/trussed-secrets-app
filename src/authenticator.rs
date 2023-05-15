@@ -15,7 +15,7 @@ use trussed::{client, syscall, try_syscall, types::PathBuf};
 
 use crate::calculate::hmac_challenge;
 use crate::command::CredentialData::HmacData;
-use crate::command::{Credential, EncryptionKeyType, VerifyCode, YKGetHMAC};
+use crate::command::{Credential, EncryptionKeyType, ListCredentials, VerifyCode, YKGetHMAC};
 use crate::credential::CredentialFlat;
 use crate::oath::Algorithm;
 use crate::{
@@ -302,7 +302,7 @@ where
         // Process the request
         let result = match command {
             Command::Select(select) => self.select(select, reply),
-            Command::ListCredentials => self.list_credentials(reply, None),
+            Command::ListCredentials(version) => self.list_credentials(reply, None, version),
             Command::Register(register) => self.register(register),
             Command::Calculate(calculate) => self.calculate(calculate, reply),
             Command::GetCredential(get) => self.get_credential(get, reply),
@@ -451,11 +451,19 @@ where
     fn try_to_serialize_credential_for_list<const R: usize>(
         credential: &CredentialFlat,
         reply: &mut Data<R>,
+        request_data: ListCredentials,
     ) -> core::result::Result<(), u8> {
         reply.push(0x72)?;
-        reply.push((credential.label.len() + 1) as u8)?;
+        if request_data.version == 1 {
+            reply.push((credential.label.len() + 2) as u8)?;
+            // Add type byte
+            reply.push(0x72)?;
+        } else {
+            reply.push((credential.label.len() + 1) as u8)?;
+        }
         reply.push(oath::combine(credential.kind, credential.algorithm))?;
         reply.extend_from_slice(&credential.label).map_err(|_| 0)?;
+
         if reply.len() > CTAPHID_MESSAGE_SIZE_LIMIT {
             // Finish early due to the usbd-ctaphid message size limit
             return Err(1);
@@ -468,6 +476,7 @@ where
         &mut self,
         reply: &mut Data<R>,
         file_index: Option<usize>,
+        request_data: ListCredentials,
     ) -> Result {
         // info_now!("recv ListCredentials");
         // return Ok(Default::default());
@@ -516,7 +525,8 @@ where
             if let Some(credential) = maybe_credential {
                 // Try to serialize, abort if does not fit into the reply buffer
                 let current_reply_bytes_count = reply.len();
-                let res = Self::try_to_serialize_credential_for_list(&credential, reply);
+                let res =
+                    Self::try_to_serialize_credential_for_list(&credential, reply, request_data);
                 if res.is_err() {
                     // Revert reply vector to the last good size, removing debris from the failed
                     // serialization
@@ -527,7 +537,10 @@ where
 
             // keep track, in case we need continuation
             file_index += 1;
-            self.state.runtime.previously = Some(CommandState::ListCredentials(file_index));
+            self.state.runtime.previously = Some(CommandState::ListCredentials(
+                file_index,
+                request_data.version,
+            ));
 
             // check if there's more
             maybe_credential = match syscall!(self.trussed.read_dir_files_next()).data {
@@ -545,7 +558,7 @@ where
     }
 
     fn send_remaining<const R: usize>(&mut self, reply: &mut Data<{ R }>) -> Result {
-        let file_index = if let Some(CommandState::ListCredentials(s_file_index)) =
+        let file_index = if let Some(CommandState::ListCredentials(s_file_index, _)) =
             self.state.runtime.previously
         {
             s_file_index
@@ -555,8 +568,8 @@ where
 
         match self.state.runtime.previously {
             None => Err(Status::ConditionsOfUseNotSatisfied),
-            Some(CommandState::ListCredentials(_)) => {
-                self.list_credentials(reply, Some(file_index))
+            Some(CommandState::ListCredentials(_, v)) => {
+                self.list_credentials(reply, Some(file_index), ListCredentials { version: v })
             }
         }
     }
