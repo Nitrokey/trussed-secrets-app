@@ -729,6 +729,14 @@ where
             .load_credential(get_credential_req.label)
             .ok_or(Status::NotFound)?;
 
+        self.require_touch_if_needed(&credential)?;
+
+        Self::try_to_serialize_credential_for_get_credential(credential, reply)
+            .map_err(|_| UnspecifiedNonpersistentExecutionError)?;
+        Ok(())
+    }
+
+    fn require_touch_if_needed(&mut self, credential: &Credential) -> Result<()> {
         // DESIGN Daily use: require touch button if set on the credential, but not if the PIN was already checked
         // Safety: encryption_key_type should be set for credential during loading in load_credential
         if credential.touch_required
@@ -736,9 +744,6 @@ where
         {
             self.user_present()?;
         }
-
-        Self::try_to_serialize_credential_for_get_credential(credential, reply)
-            .map_err(|_| UnspecifiedNonpersistentExecutionError)?;
         Ok(())
     }
 
@@ -753,13 +758,7 @@ where
             .load_credential(calculate.label)
             .ok_or(Status::NotFound)?;
 
-        // DESIGN Daily use: require touch button if set on the credential, but not if the PIN was already checked
-        // Safety: encryption_key_type should be set for credential during loading in load_credential
-        if credential.touch_required
-            && credential.encryption_key_type.unwrap() != EncryptionKeyType::PinBased
-        {
-            self.user_present()?;
-        }
+        self.require_touch_if_needed(&credential)?;
 
         let truncated_digest = match credential.kind {
             oath::Kind::Totp => crate::calculate::calculate(
@@ -1027,13 +1026,7 @@ where
 
         let credential = self.load_credential(args.label).ok_or(Status::NotFound)?;
 
-        // DESIGN Daily use: require touch button if set on the credential, but not if the PIN was already checked
-        // Safety: encryption_key_type should be set for credential during loading in load_credential
-        if credential.touch_required
-            && credential.encryption_key_type.unwrap() != EncryptionKeyType::PinBased
-        {
-            self.user_present()?;
-        }
+        self.require_touch_if_needed(&credential)?;
 
         let code_in = args.response;
 
