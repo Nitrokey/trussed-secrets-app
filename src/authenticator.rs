@@ -14,9 +14,10 @@ use trussed::types::{KeyId, Message};
 use trussed::{client, syscall, try_syscall, types::PathBuf};
 
 use crate::calculate::hmac_challenge;
-use crate::command::{EncryptionKeyType, VerifyCode, YKGetHMAC};
-use crate::credential::Credential;
-use crate::oath::{Algorithm, Kind};
+use crate::command::CredentialData::HmacData;
+use crate::command::{Credential, EncryptionKeyType, VerifyCode, YKGetHMAC};
+use crate::credential::CredentialFlat;
+use crate::oath::Algorithm;
 use crate::{
     command, ensure, oath,
     state::{CommandState, State},
@@ -378,10 +379,10 @@ where
         Ok(())
     }
 
-    fn load_credential(&mut self, label: &[u8]) -> Option<Credential> {
+    fn load_credential(&mut self, label: &[u8]) -> Option<CredentialFlat> {
         let filename = self.filename_for_label(label);
 
-        let mut credential: Credential =
+        let mut credential: CredentialFlat =
             self.state.try_read_file(&mut self.trussed, filename).ok()?;
         // Set the default EncryptionKeyType as PinBased for backwards compatibility
         // All the new records should have it set as HardwareBased, if not overridden by user
@@ -448,7 +449,7 @@ where
     }
 
     fn try_to_serialize_credential_for_list<const R: usize>(
-        credential: &Credential,
+        credential: &CredentialFlat,
         reply: &mut Data<R>,
     ) -> core::result::Result<(), u8> {
         reply.push(0x72)?;
@@ -503,7 +504,7 @@ where
                 }
             };
 
-            let maybe_credential: Option<Credential> = match file {
+            let maybe_credential: Option<CredentialFlat> = match file {
                 None => None,
                 Some(c) => self.state.decrypt_content(&mut self.trussed, c).ok(),
             };
@@ -581,7 +582,7 @@ where
 
         // 1. Replace secret in credential with handle
         let credential =
-            Credential::try_from(&register.credential).map_err(|_| Status::NotEnoughMemory)?;
+            CredentialFlat::try_from(&register.credential).map_err(|_| Status::NotEnoughMemory)?;
 
         // 2. Generate a filename for the credential
         let filename = self.filename_for_label(&credential.label);
@@ -654,7 +655,7 @@ where
             None
         ))
         .data;
-        let mut maybe_credential: Option<Credential> = match maybe_credential_enc {
+        let mut maybe_credential: Option<CredentialFlat> = match maybe_credential_enc {
             None => None,
             Some(c) => self.state.decrypt_content(&mut self.trussed, c).ok(),
         };
@@ -694,7 +695,7 @@ where
     }
 
     fn try_to_serialize_credential_for_get_credential<const R: usize>(
-        credential: Credential,
+        credential: CredentialFlat,
         reply: &mut Data<R>,
     ) -> core::result::Result<(), u8> {
         reply.push(oath::Tag::Property as u8)?;
@@ -736,7 +737,7 @@ where
         Ok(())
     }
 
-    fn require_touch_if_needed(&mut self, credential: &Credential) -> Result<()> {
+    fn require_touch_if_needed(&mut self, credential: &CredentialFlat) -> Result<()> {
         // DESIGN Daily use: require touch button if set on the credential, but not if the PIN was already checked
         // Safety: encryption_key_type should be set for credential during loading in load_credential
         if credential.touch_required
@@ -1080,7 +1081,7 @@ where
 
     fn calculate_hotp_code_for_counter(
         &mut self,
-        credential: &Credential,
+        credential: &CredentialFlat,
         counter: u32,
     ) -> iso7816::Result<u32> {
         let truncated_digest = self.calculate_hotp_digest_for_counter(credential, counter)?;
@@ -1095,7 +1096,7 @@ where
 
     fn calculate_hotp_digest_and_bump_counter(
         &mut self,
-        credential: &Credential,
+        credential: &CredentialFlat,
         counter: u32,
     ) -> iso7816::Result<[u8; 4]> {
         let credential = self.bump_counter_for_cred(credential, counter)?;
@@ -1105,9 +1106,9 @@ where
 
     fn bump_counter_for_cred(
         &mut self,
-        credential: &Credential,
+        credential: &CredentialFlat,
         counter: u32,
-    ) -> Result<Credential> {
+    ) -> Result<CredentialFlat> {
         // Do abort with error on the max value, so these could not be pregenerated,
         // and returned to user after overflow, or the same code used each time
         // load-bump counter
@@ -1131,7 +1132,7 @@ where
 
     fn calculate_hotp_digest_for_counter(
         &mut self,
-        credential: &Credential,
+        credential: &CredentialFlat,
         counter: u32,
     ) -> Result<[u8; 4]> {
         let counter_long: u64 = counter.into();
@@ -1360,31 +1361,25 @@ where
 
     fn yk_hmac<const R: usize>(&mut self, req: YKGetHMAC, reply: &mut Data<{ R }>) -> Result {
         // Get HMAC slot command
-
         let credential = self
             .load_credential(req.get_credential_label()?)
             .ok_or(Status::NotFound)?;
-        let key: &[u8] = &credential.secret;
-
-        // Make sure the set Credential is the right kind
-        ensure(
-            credential.kind == Kind::Hmac,
-            Status::IncorrectDataParameter,
-        )?;
-
-        let signature = hmac_challenge(&mut self.trussed, Algorithm::Sha1, req.challenge, key)?;
-
-        // TODO remove this check?
-        const HMAC_SHA1_LENGTH: usize = 20;
-        ensure(
-            signature.len() == HMAC_SHA1_LENGTH,
-            UnspecifiedNonpersistentExecutionError,
-        )?;
-
-        reply
-            .extend_from_slice(signature.as_slice())
-            .map_err(|_| UnspecifiedNonpersistentExecutionError)?;
-        Ok(())
+        let credential: Credential = credential.try_unpack_into_credential()?;
+        if let Some(otpdata) = credential.otp {
+            if let HmacData(x) = otpdata {
+                let key: &[u8] = x.secret;
+                let signature =
+                    hmac_challenge(&mut self.trussed, Algorithm::Sha1, req.challenge, key)?;
+                reply
+                    .extend_from_slice(signature.as_slice())
+                    .map_err(|_| UnspecifiedNonpersistentExecutionError)?;
+                Ok(())
+            } else {
+                return Err(Status::IncorrectDataParameter);
+            }
+        } else {
+            return Err(Status::IncorrectDataParameter);
+        }
     }
 
     fn yk_status<const R: usize>(&self, reply: &mut Data<{ R }>) -> Result {

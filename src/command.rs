@@ -476,8 +476,14 @@ pub struct Credential<'l> {
     pub label: &'l [u8],
     pub touch_required: bool,
     pub encryption_key_type: EncryptionKeyType,
-    pub otp: Option<OtpCredentialData<'l>>,
+    pub otp: Option<CredentialData<'l>>,
     pub password_safe: Option<PasswordSafeData<'l>>,
+}
+
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub enum CredentialData<'l> {
+    OtpData(OtpCredentialData<'l>),
+    HmacData(HmacData<'l>),
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
@@ -487,6 +493,12 @@ pub struct OtpCredentialData<'l> {
     pub digits: u8,
     pub secret: &'l [u8],
     pub counter: Option<u32>,
+}
+
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub struct HmacData<'l> {
+    pub algorithm: oath::Algorithm,
+    pub secret: &'l [u8],
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
@@ -644,13 +656,20 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
             }
             debug_now!("counter set to {:?}", &counter);
         }
-        let otp_data = Some(OtpCredentialData {
-            kind,
-            algorithm,
-            digits,
-            secret,
-            counter,
-        });
+
+        let otp_data = match kind {
+            Kind::Hotp | Kind::Totp | Kind::HotpReverse => {
+                Some(CredentialData::OtpData(OtpCredentialData {
+                    kind,
+                    algorithm,
+                    digits,
+                    secret,
+                    counter,
+                }))
+            }
+            Kind::Hmac => Some(CredentialData::HmacData(HmacData { algorithm, secret })),
+            _ => None,
+        };
 
         let pws_data = {
             let mut pws = PasswordSafeData {
