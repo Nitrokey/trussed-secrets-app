@@ -51,27 +51,57 @@ pub struct Credential {
     pub metadata: Option<ShortData>,
 }
 
-impl Credential {
-    pub fn try_from(credential: &command::Credential) -> Result<Self, ()> {
-        Ok(Self {
-            label: ShortData::from_slice(credential.label)?,
-            kind: credential.kind.unwrap_or(Kind::Hotp),
-            algorithm: credential.algorithm.unwrap_or(Algorithm::Sha1),
-            digits: credential.digits,
-            secret: ShortData::from_slice(credential.secret.unwrap_or_default())?,
-            touch_required: credential.touch_required,
-            counter: credential.counter,
-            encryption_key_type: Some(credential.encryption_key_type),
+impl Default for Credential {
+    fn default() -> Self {
+        Credential {
+            label: Default::default(),
+            kind: Kind::NotSet,
+            algorithm: Algorithm::Sha1,
+            digits: 6,
+            secret: Default::default(),
+            touch_required: false,
+            counter: None,
+            encryption_key_type: None,
+            login: None,
+            password: None,
+            metadata: None,
+        }
+    }
+}
 
-            login: credential
-                .login
-                .map(|x| ShortData::from_slice(x).unwrap_or_default()),
-            password: credential
-                .password
-                .map(|x| ShortData::from_slice(x).unwrap_or_default()),
-            metadata: credential
-                .metadata
-                .map(|x| ShortData::from_slice(x).unwrap_or_default()),
-        })
+impl Credential {
+    fn get_bytes_or_none_if_empty(x: &[u8]) -> Result<Option<ShortData>, ()> {
+        Ok(
+            if x.len() > 0 {
+                Some(ShortData::from_slice(x)?)
+            } else {
+                None
+            }
+        )
+    }
+
+    pub fn try_from(credential: &command::Credential) -> Result<Self, ()> {
+        let mut cred = Self {
+            label: ShortData::from_slice(credential.label)?,
+            touch_required: credential.touch_required,
+            encryption_key_type: Some(credential.encryption_key_type),
+            ..Default::default()
+        };
+
+        if let Some(otp) = credential.otp {
+            cred.kind = otp.kind;
+            cred.secret = ShortData::from_slice(otp.secret)?;
+            cred.digits = otp.digits;
+            cred.algorithm = otp.algorithm;
+            cred.counter = otp.counter;
+        }
+
+        if let Some(pass) = credential.password_safe {
+            cred.login = Self::get_bytes_or_none_if_empty(pass.login)?;
+            cred.password = Self::get_bytes_or_none_if_empty(pass.password)?;
+            cred.metadata = Self::get_bytes_or_none_if_empty(pass.metadata)?;
+        }
+
+        Ok(cred)
     }
 }
