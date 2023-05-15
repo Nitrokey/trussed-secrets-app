@@ -137,7 +137,6 @@ impl flexiber::Encodable for SerialType {
     }
 }
 
-
 #[derive(Clone, Copy, Encodable, Eq, PartialEq)]
 struct PINAnswerToSelect {
     #[tlv(simple = "0x79")] // Tag::Version
@@ -363,7 +362,8 @@ where
         let state = self
             .state
             .with_persistent(&mut self.trussed, |_, state| state.clone());
-        let answer_to_select = AnswerToSelect::new(state.salt, SerialType(self.options.serial_number));
+        let answer_to_select =
+            AnswerToSelect::new(state.salt, SerialType(self.options.serial_number));
 
         let data: heapless::Vec<u8, 128> = if self._extension_is_pin_set()? {
             answer_to_select

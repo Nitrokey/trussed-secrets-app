@@ -71,13 +71,11 @@ impl Default for Credential {
 
 impl Credential {
     fn get_bytes_or_none_if_empty(x: &[u8]) -> Result<Option<ShortData>, ()> {
-        Ok(
-            if x.len() > 0 {
-                Some(ShortData::from_slice(x)?)
-            } else {
-                None
-            }
-        )
+        Ok(if x.len() > 0 {
+            Some(ShortData::from_slice(x)?)
+        } else {
+            None
+        })
     }
 
     pub fn try_from(credential: &command::Credential) -> Result<Self, ()> {

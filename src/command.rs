@@ -7,8 +7,8 @@ use iso7816::Status::InstructionNotSupportedOrInvalid;
 use iso7816::{Data, Instruction, Status};
 use YKCommand::GetSerial;
 
-use crate::oath::{Kind, YKCommand};
 use crate::oath::Tag;
+use crate::oath::{Kind, YKCommand};
 use crate::{ensure, oath};
 
 const FAILED_PARSING_ERROR: Status = iso7816::Status::IncorrectDataParameter;
@@ -471,7 +471,6 @@ pub struct Register<'l> {
     pub credential: Credential<'l>,
 }
 
-
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct Credential<'l> {
     pub label: &'l [u8],
@@ -499,7 +498,7 @@ pub struct PasswordSafeData<'l> {
 
 impl<'l> PasswordSafeData<'l> {
     pub fn non_empty(&self) -> bool {
-        return !self.login.is_empty() || !self.password.is_empty() || !self.metadata.is_empty()
+        return !self.login.is_empty() || !self.password.is_empty() || !self.metadata.is_empty();
     }
 }
 
@@ -645,8 +644,13 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
             }
             debug_now!("counter set to {:?}", &counter);
         }
-        let otp_data = Some(OtpCredentialData { kind, algorithm, digits, secret, counter });
-
+        let otp_data = Some(OtpCredentialData {
+            kind,
+            algorithm,
+            digits,
+            secret,
+            counter,
+        });
 
         let pws_data = {
             let mut pws = PasswordSafeData {
@@ -688,7 +692,9 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
             }
             if pws.non_empty() {
                 Some(pws)
-            } else { None }
+            } else {
+                None
+            }
         };
 
         let credential = Credential {
