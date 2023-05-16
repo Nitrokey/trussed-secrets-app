@@ -453,16 +453,26 @@ where
         reply: &mut Data<R>,
         request_data: ListCredentials,
     ) -> core::result::Result<(), u8> {
-        reply.push(0x72)?;
-        if request_data.version == 1 {
-            reply.push((credential.label.len() + 2) as u8)?;
-            // Add type byte
-            reply.push(0x72)?;
-        } else {
-            reply.push((credential.label.len() + 1) as u8)?;
+        match request_data.version {
+            1 => {
+                reply.push(0x72)?;
+                reply.push((credential.label.len() + 2) as u8)?;
+                reply.push(oath::combine(credential.kind, credential.algorithm))?;
+                reply.extend_from_slice(&credential.label).map_err(|_| 0)?;
+                // Add metadata/properties byte
+                reply.push(credential.get_properties_byte())?;
+            }
+            0 => {
+                reply.push(0x72)?;
+                reply.push((credential.label.len() + 1) as u8)?;
+                reply.push(oath::combine(credential.kind, credential.algorithm))?;
+                reply.extend_from_slice(&credential.label).map_err(|_| 0)?;
+            }
+            _ => {
+                // Unhandled version requested
+                return Err(1);
+            }
         }
-        reply.push(oath::combine(credential.kind, credential.algorithm))?;
-        reply.extend_from_slice(&credential.label).map_err(|_| 0)?;
 
         if reply.len() > CTAPHID_MESSAGE_SIZE_LIMIT {
             // Finish early due to the usbd-ctaphid message size limit
@@ -609,6 +619,7 @@ where
         );
 
         if write_res.is_err() {
+            warn_now!("Failed serialization of {:?}: {:?}", &credential.label, write_res);
             // 1. Try to delete the empty file, ignore errors
             let filename = self.filename_for_label(&credential.label);
             try_syscall!(self.trussed.remove_file(self.options.location, filename)).ok();

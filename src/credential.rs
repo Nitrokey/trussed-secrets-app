@@ -74,6 +74,22 @@ impl Default for CredentialFlat {
 }
 
 impl CredentialFlat {
+    pub fn get_properties_byte(&self) -> u8 {
+        let mut res: u8 = 0;
+        res |= if self.touch_required { 1 << 0 } else { 0 };
+        res |= if self.encryption_key_type.unwrap() == EncryptionKeyType::PinBased {
+            1 << 1
+        } else {
+            0
+        };
+        res |= if self.login.is_some() || self.password.is_some() {
+            1 << 2
+        } else {
+            0
+        };
+        res
+    }
+
     fn get_bytes_or_none_if_empty(x: &[u8]) -> Result<Option<ShortData>, ()> {
         Ok(if x.len() > 0 {
             Some(ShortData::from_slice(x)?)
