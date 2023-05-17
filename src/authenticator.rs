@@ -13,7 +13,7 @@ use trussed::{client, syscall, try_syscall, types::PathBuf};
 
 use crate::calculate::hmac_challenge;
 use crate::command::CredentialData::HmacData;
-use crate::command::{Credential, EncryptionKeyType, ListCredentials, VerifyCode, YKGetHMAC};
+use crate::command::{Credential, EncryptionKeyType, ListCredentials, VerifyCode, YKGetHmac};
 use crate::credential::CredentialFlat;
 
 use crate::{
@@ -322,7 +322,7 @@ where
 
             Command::YKSerial => self.yk_serial(reply),
             Command::YKGetStatus => self.yk_status(reply),
-            Command::YKGetHMAC(req) => self.yk_hmac(req, reply),
+            Command::YKGetHmac(req) => self.yk_hmac(req, reply),
 
             Command::SendRemaining => self.send_remaining(reply),
             _ => Err(Status::ConditionsOfUseNotSatisfied),
@@ -1385,7 +1385,7 @@ where
         return Ok(());
     }
 
-    fn yk_hmac<const R: usize>(&mut self, req: YKGetHMAC, reply: &mut Data<{ R }>) -> Result {
+    fn yk_hmac<const R: usize>(&mut self, req: YKGetHmac, reply: &mut Data<{ R }>) -> Result {
         // Get HMAC slot command
         let credential = self
             .load_credential(req.get_credential_label()?)

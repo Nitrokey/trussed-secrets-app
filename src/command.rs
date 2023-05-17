@@ -49,18 +49,18 @@ pub enum Command<'l> {
 
     YKSerial,
     YKGetStatus,
-    YKGetHMAC(YKGetHMAC<'l>),
+    YKGetHmac(YKGetHmac<'l>),
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
-pub struct YKGetHMAC<'l> {
+pub struct YKGetHmac<'l> {
     /// challenge, padded with PKCS#7 to 64 bytes
     pub challenge: &'l [u8],
     /// The P1 parameter selecting the command, or the HMAC slot
     pub slot_cmd: Option<YKCommand>,
 }
 
-impl<'l, const C: usize> TryFrom<&'l Data<C>> for YKGetHMAC<'l> {
+impl<'l, const C: usize> TryFrom<&'l Data<C>> for YKGetHmac<'l> {
     type Error = Status;
     fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
         Ok(Self {
@@ -70,7 +70,7 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for YKGetHMAC<'l> {
     }
 }
 
-impl<'l> YKGetHMAC<'l> {
+impl<'l> YKGetHmac<'l> {
     pub fn get_credential_label(&self) -> Result<&[u8], Status> {
         Ok(match self.slot_cmd.ok_or(Status::IncorrectDataParameter)? {
             YKCommand::HmacSlot1 => "HmacSlot1",
@@ -88,14 +88,14 @@ impl<'l> YKGetHMAC<'l> {
             YKCommand::HmacSlot2 => {}
             _ => return Err(Status::IncorrectDataParameter),
         };
-        Ok(YKGetHMAC {
+        Ok(YKGetHmac {
             challenge: self.challenge,
             slot_cmd: Some(slot),
         })
     }
 }
 
-impl<'l> TryFrom<&'l [u8]> for YKGetHMAC<'l> {
+impl<'l> TryFrom<&'l [u8]> for YKGetHmac<'l> {
     type Error = Status;
     fn try_from(data: &'l [u8]) -> Result<Self, Self::Error> {
         // Input data should always be padded to 64 bytes
@@ -771,8 +771,8 @@ impl<'l> Command<'l> {
                 Ok(Self::YKSerial)
             }
             // Get HMAC slot command
-            (0x00, oath::YKInstruction::ApiRequest, slot, 0x00) => Ok(Self::YKGetHMAC({
-                YKGetHMAC::try_from(data)?.with_slot(slot)?
+            (0x00, oath::YKInstruction::ApiRequest, slot, 0x00) => Ok(Self::YKGetHmac({
+                YKGetHmac::try_from(data)?.with_slot(slot)?
             })),
             // Get status
             (0x00, oath::YKInstruction::Status, 0x00, 0x00) => Ok(Self::YKGetStatus),
