@@ -2,8 +2,12 @@ use core::convert::{TryFrom, TryInto};
 use flexiber::{SimpleTag, TagLike};
 use serde::{Deserialize, Serialize};
 
-use iso7816::{Data, Status};
+use iso7816::command::class::Class;
+use iso7816::Status::InstructionNotSupportedOrInvalid;
+use iso7816::{Data, Instruction, Status};
+use YKCommand::GetSerial;
 
+use crate::oath::{Kind, YKCommand};
 use crate::oath::Tag;
 use crate::{ensure, oath};
 
@@ -43,6 +47,85 @@ pub enum Command<'l> {
     SendRemaining,
     /// Get Credential data
     GetCredential(GetCredential<'l>),
+
+    YKSerial,
+    YKGetStatus,
+    YKGetHMAC(YKGetHMAC<'l>),
+}
+
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub struct YKGetHMAC<'l> {
+    /// challenge, padded with PKCS#7 to 64 bytes
+    pub challenge: &'l [u8],
+    /// The P1 parameter selecting the command, or the HMAC slot
+    pub slot_cmd: Option<YKCommand>,
+}
+
+impl<'l, const C: usize> TryFrom<&'l Data<C>> for YKGetHMAC<'l> {
+    type Error = Status;
+    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
+        Ok(Self {
+            challenge: data,
+            slot_cmd: None,
+        })
+    }
+}
+
+impl<'l> YKGetHMAC<'l> {
+    pub fn get_credential_label(&self) -> Result<&[u8], Status> {
+        Ok(match self.slot_cmd.ok_or(Status::IncorrectDataParameter)? {
+            YKCommand::HmacSlot1 => "HmacSlot1",
+            YKCommand::HmacSlot2 => "HmacSlot2",
+            _ => {
+                return Err(Status::IncorrectDataParameter);
+            }
+        }
+        .as_bytes())
+    }
+    fn with_slot(&self, slot: u8) -> Result<Self, Status> {
+        let slot = YKCommand::try_from(slot)?;
+        match slot {
+            YKCommand::HmacSlot1 => {}
+            YKCommand::HmacSlot2 => {}
+            _ => return Err(Status::IncorrectDataParameter),
+        };
+        Ok(YKGetHMAC {
+            challenge: self.challenge,
+            slot_cmd: Some(slot),
+        })
+    }
+}
+
+impl<'l> TryFrom<&'l [u8]> for YKGetHMAC<'l> {
+    type Error = Status;
+    fn try_from(data: &'l [u8]) -> Result<Self, Self::Error> {
+        // Input data should always be padded to 64 bytes
+        ensure(data.len() == 64, Status::IncorrectDataParameter)?;
+        // PKCS#7 padding; compatibility with Yubikey's PKCS#7 version
+        // TODO extract to separate crate or use known good implementation
+        let challenge = {
+            let mut idx = data.len();
+            while idx > 0 {
+                idx -= 1;
+                // TODO OPT can use unchecked get here
+                if data[idx] != data[63] {
+                    break;
+                }
+            }
+            if idx == 0 && data[0] == data[1] {
+                // All sent is padding
+                return Err(Status::IncorrectDataParameter);
+            }
+            // We have at least one element in the challenge
+            debug_now!("Found length {}", idx);
+            &data[..=idx]
+        };
+
+        Ok(Self {
+            challenge,
+            slot_cmd: None,
+        })
+    }
 }
 
 /// TODO: change into enum
@@ -558,6 +641,11 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
         info_now!("parsed secret {:?}", &secret);
 
         let kind: oath::Kind = secret_header[0].try_into()?;
+        if kind == Kind::Hmac {
+            // TODO encode verification logic into separate types
+            ensure(secret.len() == 20, FAILED_PARSING_ERROR)?;
+        }
+
         let algorithm: oath::Algorithm = secret_header[0].try_into()?;
         let digits = secret_header[1];
 
@@ -652,6 +740,36 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
     }
 }
 
+impl<'l> Command<'l> {
+    /// Parse the Yubikey's Challenge-Response request
+    fn try_parse_yk_req(
+        class: Class,
+        instruction: Instruction,
+        p1: u8,
+        p2: u8,
+        data: &'l [u8],
+    ) -> Result<Self, Status> {
+        let instruction_byte: u8 = instruction.into();
+        let yk_instruction: oath::YKInstruction = instruction_byte
+            .try_into()
+            .map_err(|_| InstructionNotSupportedOrInvalid)?;
+        match (class.into_inner(), yk_instruction, p1, p2) {
+            // Get serial
+            (0x00, oath::YKInstruction::ApiRequest, maybe_cmd_get_serial, 0x00)
+                if maybe_cmd_get_serial == GetSerial.as_u8() =>
+            {
+                Ok(Self::YKSerial)
+            }
+            // Get HMAC slot command
+            (0x00, oath::YKInstruction::ApiRequest, slot, 0x00) => Ok(Self::YKGetHMAC({
+                YKGetHMAC::try_from(data)?.with_slot(slot)?
+            })),
+            // Get status
+            (0x00, oath::YKInstruction::Status, 0x00, 0x00) => Ok(Self::YKGetStatus),
+            _ => Err(InstructionNotSupportedOrInvalid),
+        }
+    }
+}
 impl<'l, const C: usize> TryFrom<&'l iso7816::Command<C>> for Command<'l> {
     type Error = Status;
     /// The first layer of unraveling the iso7816::Command onion.
@@ -677,9 +795,9 @@ impl<'l, const C: usize> TryFrom<&'l iso7816::Command<C>> for Command<'l> {
             return Err(Status::LogicalChannelNotSupported);
         }
 
-        // TODO: should we check `command.expected() == 0`, where specified?
-
-        if (0x00, iso7816::Instruction::Select, 0x04, 0x00)
+        if let Ok(req) = Self::try_parse_yk_req(class, instruction, p1, p2, data) {
+            Ok(req)
+        } else if (0x00, iso7816::Instruction::Select, 0x04, 0x00)
             == (class.into_inner(), instruction, p1, p2)
         {
             Ok(Self::Select(Select::try_from(data)?))
@@ -732,7 +850,7 @@ impl<'l, const C: usize> TryFrom<&'l iso7816::Command<C>> for Command<'l> {
                     Self::GetCredential(GetCredential::try_from(data)?)
                 }
                 (0x00, oath::Instruction::SendRemaining, 0x00, 0x00) => Self::SendRemaining,
-                _ => return Err(Status::InstructionNotSupportedOrInvalid),
+                _ => return Err(InstructionNotSupportedOrInvalid),
             })
         }
     }

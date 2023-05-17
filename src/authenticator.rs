@@ -5,15 +5,18 @@ use core::time::Duration;
 
 use flexiber::{Encodable, EncodableHeapless};
 use heapless_bytes::Bytes;
-use iso7816::Status::{NotFound, UnspecifiedNonpersistentExecutionError};
+use iso7816::Status::{
+    NotFound, UnspecifiedNonpersistentExecutionError, UnspecifiedPersistentExecutionError,
+};
 use iso7816::{Data, Status};
 use trussed::types::Location;
 use trussed::types::{KeyId, Message};
 use trussed::{client, syscall, try_syscall, types::PathBuf};
 
-use crate::command::{EncryptionKeyType, VerifyCode};
+use crate::calculate::hmac_challenge;
+use crate::command::{EncryptionKeyType, VerifyCode, YKGetHMAC};
 use crate::credential::Credential;
-use crate::oath::Kind;
+use crate::oath::{Algorithm, Kind};
 use crate::{
     command, ensure, oath,
     state::{CommandState, State},
@@ -37,6 +40,9 @@ pub struct Options {
     /// The custom status id to be set for the failed verification for the Reverse HOTP.
     /// By design this should be animated as: blink red LED infinite times, highest priority.
     pub custom_status_reverse_hotp_error: u8,
+
+    /// A serial number to be returned in YK Challenge-Response and Status commands
+    pub serial_number: [u8; 4],
 }
 
 impl Options {
@@ -44,11 +50,13 @@ impl Options {
         location: Location,
         custom_status_reverse_hotp_success: u8,
         custom_status_reverse_hotp_error: u8,
+        serial_number: [u8; 4],
     ) -> Self {
         Self {
             location,
             custom_status_reverse_hotp_success,
             custom_status_reverse_hotp_error,
+            serial_number,
         }
     }
 }
@@ -72,7 +80,7 @@ struct OathVersion {
 impl Default for OathVersion {
     /// For ykman, 4.2.6 is the first version to support "touch" requirement
     fn default() -> Self {
-        // OathVersion { major: 1, minor: 0, patch: 0}
+        // TODO: set this up automatically during the build from the project version
         OathVersion {
             major: 4,
             minor: 11,
@@ -293,6 +301,10 @@ where
             Command::VerifyPin(vpin) => self.verify_pin(vpin, reply),
             Command::SetPin(spin) => self.set_pin(spin, reply),
             Command::ChangePin(cpin) => self.change_pin(cpin, reply),
+
+            Command::YKSerial => self.yk_serial(reply),
+            Command::YKGetStatus => self.yk_status(reply),
+            Command::YKGetHMAC(req) => self.yk_hmac(req, reply),
 
             Command::SendRemaining => self.send_remaining(reply),
             _ => Err(Status::ConditionsOfUseNotSatisfied),
@@ -744,8 +756,8 @@ where
                     return Err(Status::UnspecifiedPersistentExecutionError);
                 }
             }
-            Kind::HotpReverse => {
-                // This credential kind should never be access through calculate()
+            _ => {
+                // This credential kind should never be accessed through calculate()
                 return Err(Status::SecurityStatusNotSatisfied);
             }
             _ => {
@@ -1334,6 +1346,61 @@ where
             }
         }
         return Ok(());
+    }
+
+    fn yk_hmac<const R: usize>(&mut self, req: YKGetHMAC, reply: &mut Data<{ R }>) -> Result {
+        // Get HMAC slot command
+
+        let credential = self
+            .load_credential(req.get_credential_label()?)
+            .ok_or(Status::NotFound)?;
+        let key: &[u8] = &credential.secret;
+
+        // Make sure the set Credential is the right kind
+        ensure(
+            credential.kind == Kind::Hmac,
+            Status::IncorrectDataParameter,
+        )?;
+
+        let signature = hmac_challenge(&mut self.trussed, Algorithm::Sha1, req.challenge, key)?;
+
+        // TODO remove this check?
+        const HMAC_SHA1_LENGTH: usize = 20;
+        ensure(
+            signature.len() == HMAC_SHA1_LENGTH,
+            UnspecifiedNonpersistentExecutionError,
+        )?;
+
+        reply
+            .extend_from_slice(signature.as_slice())
+            .map_err(|_| UnspecifiedNonpersistentExecutionError)?;
+        Ok(())
+    }
+
+    fn yk_status<const R: usize>(&self, reply: &mut Data<{ R }>) -> Result {
+        // Get 6 bytes status; 3 bytes version, 3 bytes other data
+        // TODO Discuss, should this be application or runner firmware version
+        let v = OathVersion::default();
+        let firmware_version = &[v.major, v.minor, v.patch];
+        reply
+            .extend_from_slice(firmware_version)
+            .map_err(|_| UnspecifiedPersistentExecutionError)?;
+
+        // Add filler to match the expected 6 bytes
+        // TODO Check the actual data format for the YK request
+        let other_data = &[0x42, 0x42, 0x42];
+        reply
+            .extend_from_slice(other_data)
+            .map_err(|_| UnspecifiedPersistentExecutionError)?;
+        Ok(())
+    }
+
+    fn yk_serial<const R: usize>(&self, reply: &mut Data<{ R }>) -> Result {
+        // Get 4-byte serial
+        reply
+            .extend_from_slice(&self.options.serial_number)
+            .map_err(|_| UnspecifiedPersistentExecutionError)?;
+        Ok(())
     }
 }
 

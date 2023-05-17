@@ -3,6 +3,7 @@ use iso7816::Status;
 
 use crate::oath;
 use crate::Result;
+use trussed::types::Signature;
 use trussed::{
     client, try_syscall,
     types::{KeyId, Location},
@@ -51,11 +52,33 @@ where
                     .signature;
                 dynamic_truncation(&digest)
             }
-            // Sha512 => unimplemented!(),
             Sha512 => return Err(Status::FunctionNotSupported),
         };
 
         Ok(truncated.to_be_bytes())
+    })?
+}
+
+pub fn hmac_challenge<T>(
+    trussed: &mut T,
+    algorithm: oath::Algorithm,
+    challenge: &[u8],
+    key: &[u8],
+) -> Result<Signature>
+where
+    T: client::Client + client::HmacSha1,
+{
+    with_key(trussed, key, |trussed, key| {
+        use oath::Algorithm::*;
+        match algorithm {
+            Sha1 => {
+                let digest = try_syscall!(trussed.sign_hmacsha1(key, challenge))
+                    .map_err(|_| Status::UnspecifiedPersistentExecutionError)?
+                    .signature;
+                Ok(digest)
+            }
+            _ => Err(Status::InstructionNotSupportedOrInvalid),
+        }
     })?
 }
 
