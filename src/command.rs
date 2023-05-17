@@ -7,9 +7,7 @@ use iso7816::Status::InstructionNotSupportedOrInvalid;
 use iso7816::{Data, Instruction, Status};
 use YKCommand::GetSerial;
 
-use crate::oath::Tag;
-use crate::oath::Tag::Algorithm;
-use crate::oath::{Kind, YKCommand};
+use crate::oath::{Kind, Tag, YKCommand};
 use crate::{ensure, oath};
 
 const FAILED_PARSING_ERROR: Status = iso7816::Status::IncorrectDataParameter;
@@ -470,7 +468,7 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Delete<'l> {
 impl<'l, const C: usize> TryFrom<&'l Data<C>> for ListCredentials {
     type Error = iso7816::Status;
     fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
-        let v = if data.len() > 0 { data[0] } else { 0 };
+        let v = if !data.is_empty() { data[0] } else { 0 };
         Ok(ListCredentials { version: v })
     }
 }
@@ -537,7 +535,7 @@ pub struct PasswordSafeData<'l> {
 
 impl<'l> PasswordSafeData<'l> {
     pub fn non_empty(&self) -> bool {
-        return !self.login.is_empty() || !self.password.is_empty() || !self.metadata.is_empty();
+        !self.login.is_empty() || !self.password.is_empty() || !self.metadata.is_empty()
     }
 }
 

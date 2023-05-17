@@ -91,7 +91,7 @@ impl CredentialFlat {
     }
 
     fn get_bytes_or_none_if_empty(x: &[u8]) -> Result<Option<ShortData>, ()> {
-        Ok(if x.len() > 0 {
+        Ok(if !x.is_empty() {
             Some(ShortData::from_slice(x)?)
         } else {
             None

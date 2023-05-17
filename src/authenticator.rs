@@ -5,10 +5,7 @@ use core::time::Duration;
 
 use flexiber::{Encodable, EncodableHeapless};
 use heapless_bytes::Bytes;
-use iso7816::Status::{
-    NotEnoughMemory, NotFound, UnspecifiedNonpersistentExecutionError,
-    UnspecifiedPersistentExecutionError,
-};
+use iso7816::Status::{NotEnoughMemory, NotFound, UnspecifiedNonpersistentExecutionError};
 use iso7816::{Data, Status};
 use trussed::types::Location;
 use trussed::types::{KeyId, Message};
@@ -18,7 +15,7 @@ use crate::calculate::hmac_challenge;
 use crate::command::CredentialData::HmacData;
 use crate::command::{Credential, EncryptionKeyType, ListCredentials, VerifyCode, YKGetHMAC};
 use crate::credential::CredentialFlat;
-use crate::oath::Algorithm;
+
 use crate::{
     command, ensure, oath,
     state::{CommandState, State},
@@ -740,7 +737,7 @@ where
             if let Some(value) = field {
                 reply.push(*tag as u8)?;
                 reply.push((value.len()) as u8)?;
-                reply.extend_from_slice(&value).map_err(|_| 0)?;
+                reply.extend_from_slice(value).map_err(|_| 0)?;
             }
             if reply.len() > CTAPHID_MESSAGE_SIZE_LIMIT {
                 // Finish early due to the usbd-ctaphid message size limit
@@ -1394,19 +1391,15 @@ where
             .load_credential(req.get_credential_label()?)
             .ok_or(Status::NotFound)?;
         let credential: Credential = credential.try_unpack_into_credential()?;
-        if let Some(otpdata) = credential.otp {
-            if let HmacData(x) = otpdata {
-                let key: &[u8] = x.secret;
-                let signature = hmac_challenge(&mut self.trussed, x.algorithm, req.challenge, key)?;
-                reply
-                    .extend_from_slice(signature.as_slice())
-                    .map_err(|_| NotEnoughMemory)?;
-                Ok(())
-            } else {
-                return Err(Status::IncorrectDataParameter);
-            }
+        if let Some(HmacData(data)) = credential.otp {
+            let key: &[u8] = data.secret;
+            let signature = hmac_challenge(&mut self.trussed, data.algorithm, req.challenge, key)?;
+            reply
+                .extend_from_slice(signature.as_slice())
+                .map_err(|_| NotEnoughMemory)?;
+            Ok(())
         } else {
-            return Err(Status::IncorrectDataParameter);
+            Err(Status::IncorrectDataParameter)
         }
     }
 
