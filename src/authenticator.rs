@@ -6,7 +6,8 @@ use core::time::Duration;
 use flexiber::{Encodable, EncodableHeapless};
 use heapless_bytes::Bytes;
 use iso7816::Status::{
-    NotFound, UnspecifiedNonpersistentExecutionError, UnspecifiedPersistentExecutionError,
+    NotEnoughMemory, NotFound, UnspecifiedNonpersistentExecutionError,
+    UnspecifiedPersistentExecutionError,
 };
 use iso7816::{Data, Status};
 use trussed::types::Location;
@@ -619,7 +620,11 @@ where
         );
 
         if write_res.is_err() {
-            warn_now!("Failed serialization of {:?}: {:?}", &credential.label, write_res);
+            warn_now!(
+                "Failed serialization of {:?}: {:?}",
+                &credential.label,
+                write_res
+            );
             // 1. Try to delete the empty file, ignore errors
             let filename = self.filename_for_label(&credential.label);
             try_syscall!(self.trussed.remove_file(self.options.location, filename)).ok();
@@ -1392,11 +1397,10 @@ where
         if let Some(otpdata) = credential.otp {
             if let HmacData(x) = otpdata {
                 let key: &[u8] = x.secret;
-                let signature =
-                    hmac_challenge(&mut self.trussed, Algorithm::Sha1, req.challenge, key)?;
+                let signature = hmac_challenge(&mut self.trussed, x.algorithm, req.challenge, key)?;
                 reply
                     .extend_from_slice(signature.as_slice())
-                    .map_err(|_| UnspecifiedNonpersistentExecutionError)?;
+                    .map_err(|_| NotEnoughMemory)?;
                 Ok(())
             } else {
                 return Err(Status::IncorrectDataParameter);
@@ -1413,14 +1417,14 @@ where
         let firmware_version = &[v.major, v.minor, v.patch];
         reply
             .extend_from_slice(firmware_version)
-            .map_err(|_| UnspecifiedPersistentExecutionError)?;
+            .map_err(|_| NotEnoughMemory)?;
 
         // Add filler to match the expected 6 bytes
         // TODO Check the actual data format for the YK request
         let other_data = &[0x42, 0x42, 0x42];
         reply
             .extend_from_slice(other_data)
-            .map_err(|_| UnspecifiedPersistentExecutionError)?;
+            .map_err(|_| NotEnoughMemory)?;
         Ok(())
     }
 
@@ -1428,7 +1432,7 @@ where
         // Get 4-byte serial
         reply
             .extend_from_slice(&self.options.serial_number)
-            .map_err(|_| UnspecifiedPersistentExecutionError)?;
+            .map_err(|_| NotEnoughMemory)?;
         Ok(())
     }
 }

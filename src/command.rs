@@ -8,6 +8,7 @@ use iso7816::{Data, Instruction, Status};
 use YKCommand::GetSerial;
 
 use crate::oath::Tag;
+use crate::oath::Tag::Algorithm;
 use crate::oath::{Kind, YKCommand};
 use crate::{ensure, oath};
 
@@ -508,10 +509,23 @@ pub struct OtpCredentialData<'l> {
     pub counter: Option<u32>,
 }
 
+// non_exhaustive added to prevent construction without validation check
+#[non_exhaustive]
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct HmacData<'l> {
     pub algorithm: oath::Algorithm,
     pub secret: &'l [u8],
+}
+
+impl<'l> HmacData<'l> {
+    pub fn try_from(algorithm: oath::Algorithm, secret: &'l [u8]) -> Result<Self, ()> {
+        const SHA1_SECRET_EXPECTED_SIZE: usize = 20;
+        // Currently only SHA1 is supported, hence the expected SECRET length
+        if !(secret.len() == SHA1_SECRET_EXPECTED_SIZE && algorithm == oath::Algorithm::Sha1) {
+            return Err(());
+        }
+        Ok(Self { algorithm, secret })
+    }
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
@@ -625,11 +639,6 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
         info_now!("parsed secret {:?}", &secret);
 
         let kind: oath::Kind = secret_header[0].try_into()?;
-        if kind == Kind::Hmac {
-            // TODO encode verification logic into separate types
-            ensure(secret.len() == 20, FAILED_PARSING_ERROR)?;
-        }
-
         let algorithm: oath::Algorithm = secret_header[0].try_into()?;
         let digits = secret_header[1];
 
@@ -680,7 +689,9 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
                     counter,
                 }))
             }
-            Kind::Hmac => Some(CredentialData::HmacData(HmacData { algorithm, secret })),
+            Kind::Hmac => Some(CredentialData::HmacData(
+                HmacData::try_from(algorithm, secret).map_err(|_| FAILED_PARSING_ERROR)?,
+            )),
             _ => None,
         };
 
