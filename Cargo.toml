@@ -21,6 +21,7 @@ iso7816 = "0.1"
 serde = { version = "1", default-features = false }
 trussed = { version = "0.1", features = ["clients-3"] }
 encrypted_container = { path = "components/encrypted_container" }
+block-padding = "0.3.3"
 
 # extension
 trussed-auth = "0.2.0"

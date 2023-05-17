@@ -1,3 +1,4 @@
+use block_padding::{Pkcs7, RawPadding};
 use core::convert::{TryFrom, TryInto};
 use flexiber::{SimpleTag, TagLike};
 use serde::{Deserialize, Serialize};
@@ -100,25 +101,16 @@ impl<'l> TryFrom<&'l [u8]> for YKGetHmac<'l> {
     fn try_from(data: &'l [u8]) -> Result<Self, Self::Error> {
         // Input data should always be padded to 64 bytes
         ensure(data.len() == 64, Status::IncorrectDataParameter)?;
-        // PKCS#7 padding; compatibility with Yubikey's PKCS#7 version
-        // TODO extract to separate crate or use known good implementation
-        let challenge = {
-            let mut idx = data.len();
-            while idx > 0 {
-                idx -= 1;
-                // TODO OPT can use unchecked get here
-                if data[idx] != data[63] {
-                    break;
-                }
-            }
-            if idx == 0 && data[0] == data[1] {
-                // All sent is padding
-                return Err(Status::IncorrectDataParameter);
-            }
-            // We have at least one element in the challenge
-            debug_now!("Found length {}", idx);
-            &data[..=idx]
-        };
+        // PKCS#7 padding; possibly incompatible with Yubikey's PKCS#7 version, as it expects
+        // the last byte to always be the padding byte value. See KeepassXC implementation comments
+        // for the details.
+        // Everything works with the challenge length up to 63 bytes though, and YK implementation
+        // would not handle more anyway, hence accepting this potential incompatibility.
+        let challenge = Pkcs7::raw_unpad(data).map_err(|_| Status::IncorrectDataParameter)?;
+        if challenge.is_empty() {
+            // All sent is padding
+            return Err(Status::IncorrectDataParameter);
+        }
 
         Ok(Self {
             challenge,
