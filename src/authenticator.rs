@@ -47,6 +47,7 @@ pub struct Options {
 }
 
 impl Options {
+    /// Create new Options instance
     pub const fn new(
         location: Location,
         custom_status_reverse_hotp_success: u8,
@@ -218,11 +219,11 @@ where
         + client::Chacha8Poly1305
         + trussed_auth::AuthClient,
 {
-    // const CREDENTIAL_DIRECTORY: &'static str = "cred";
     fn credential_directory() -> trussed::types::PathBuf {
         trussed::types::PathBuf::from("cred")
     }
 
+    /// Create new Authenticator instance
     pub fn new(trussed: T, options: Options) -> Self {
         Self {
             state: State::new(options.location),
@@ -231,13 +232,14 @@ where
         }
     }
 
-    pub fn init(&mut self) -> Result {
+    fn init(&mut self) -> Result {
         if self.state.runtime.encryption_key_hardware.is_none() {
             self.state.runtime.encryption_key_hardware = Some(self._extension_get_hardware_key()?);
         }
         Ok(())
     }
 
+    /// Respond to the iso7816 encoded request
     pub fn respond<const C: usize, const R: usize>(
         &mut self,
         command: &iso7816::Command<C>,
@@ -1182,7 +1184,7 @@ where
         )
     }
 
-    pub fn _extension_logout(&mut self) -> Result {
+    fn _extension_logout(&mut self) -> Result {
         if let Some(key) = self.state.runtime.encryption_key.take() {
             try_syscall!(self.trussed.delete(key))
                 .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;

@@ -12,6 +12,7 @@ use crate::{ensure, oath};
 
 const FAILED_PARSING_ERROR: Status = Status::IncorrectDataParameter;
 
+/// Decoded command request, along with data
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Command<'l> {
     /// Select the application
@@ -46,9 +47,11 @@ pub enum Command<'l> {
     SendRemaining,
     /// Get Credential data
     GetCredential(GetCredential<'l>),
-
+    /// Return serial number of the device. Yubikey-compatible command. Used in KeepassXC.
     YkSerial,
+    /// Return application's status. Yubikey-compatible command. Used in KeepassXC.
     YkGetStatus,
+    /// Get the HMAC response for a challenge. Yubikey-compatible command. Used in KeepassXC.
     YkGetHmac(YkGetHmac<'l>),
 }
 

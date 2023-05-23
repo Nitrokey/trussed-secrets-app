@@ -12,6 +12,12 @@
 )]
 #![deny(unsafe_code)]
 
+//! Secrets App is a secrets manager, focused on OTP and Password Safe features.
+//!
+//! It additionally supports Yubikey's HMAC challenge (for KeepassXC),
+//! and Reverse HOTP (for use with Heas for the measured boot).
+//! It is based on oath-authenticator, extended and reworked.
+
 #[macro_use]
 extern crate delog;
 generate_macros!();
@@ -19,6 +25,7 @@ generate_macros!();
 #[macro_use(hex)]
 extern crate hex_literal;
 
+/// This is the main module, containing the Secrets App implementation.
 pub mod authenticator;
 
 pub use authenticator::{Authenticator, Options};
@@ -32,11 +39,8 @@ mod ctaphid;
 mod oath;
 mod state;
 
-// https://git.io/JfWuD
-pub const YUBICO_RID: [u8; 5] = hex!("A000000 527");
-// pub const YUBICO_OTP_PIX: [u8; 3] = hex!("200101");
-// pub const YUBICO_OTP_AID: &[u8] = &hex!("A000000527 2001 01");
-pub const YUBICO_OATH_AID: &[u8] = &hex!("A000000527 2101"); // 01");
+/// This is the application id, which allows to select and identify it
+pub const YUBICO_OATH_AID: &[u8] = &hex!("A000000527 2101");
 
 /// This constant defines timeout for the regular UP confirmation
 pub const UP_TIMEOUT_MILLISECONDS: u32 = 15 * 1000;
