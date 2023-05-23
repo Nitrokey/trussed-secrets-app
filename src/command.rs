@@ -795,7 +795,7 @@ impl<'l, const C: usize> TryFrom<&'l iso7816::Command<C>> for Command<'l> {
 
         if let Ok(req) = Self::try_parse_yk_req(class, instruction, p1, p2, data) {
             Ok(req)
-        } else if (0x00, iso7816::Instruction::Select, 0x04, 0x00)
+        } else if (0x00, Instruction::Select, 0x04, 0x00)
             == (class.into_inner(), instruction, p1, p2)
         {
             Ok(Self::Select(Select::try_from(data)?))

@@ -340,7 +340,7 @@ fn main() {
         pid: args.pid,
     };
 
-    log::info!("Initializing Trussed");
+    info!("Initializing Trussed");
     trussed_usbip::Builder::new(store, options)
         .dispatch(dispatch::Dispatch::new())
         .init_platform(move |platform| {
@@ -360,11 +360,11 @@ fn main() {
 }
 
 fn store_file(platform: &impl Platform, host_file: &Path, device_file: &str) {
-    log::info!("Writing {} to file system", device_file);
+    info!("Writing {} to file system", device_file);
     let data = std::fs::read(host_file).expect("failed to read file");
     trussed::store::store(
         platform.store(),
-        trussed::types::Location::Internal,
+        Location::Internal,
         &trussed::types::PathBuf::from(device_file),
         &data,
     )

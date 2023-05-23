@@ -1267,7 +1267,7 @@ where
             Bytes::from_slice(password).map_err(|_| iso7816::Status::IncorrectDataParameter)?
         ))
         .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
-        reply.result.ok_or(iso7816::Status::VerificationFailed)
+        reply.result.ok_or(Status::VerificationFailed)
     }
 
     fn _extension_is_pin_set(&mut self) -> Result<bool> {
@@ -1364,7 +1364,7 @@ where
     #[cfg(feature = "brute-force-delay")]
     fn get_uptime(&mut self) -> Result<Duration> {
         let uptime = try_syscall!(self.trussed.uptime())
-            .map_err(|_| iso7816::Status::SecurityStatusNotSatisfied)?
+            .map_err(|_| Status::SecurityStatusNotSatisfied)?
             .uptime;
         Ok(uptime)
     }
@@ -1451,7 +1451,7 @@ where
             Self::credential_directory(),
             None
         ))
-        .map_err(|_| iso7816::Status::KeyReferenceNotFound)?
+        .map_err(|_| Status::KeyReferenceNotFound)?
         .data;
         if first_file.is_none() {
             return Ok(0);
