@@ -44,8 +44,8 @@ fn main() -> Result<(), ()> {
     pretty_env_logger::init();
     let args = Args::parse();
 
-    trussed::virt::with_ram_client("oath", move |client| {
-        let mut oath = oath_authenticator::Authenticator::<_>::new(client);
+    trussed::virt::with_ram_client("secrets", move |client| {
+        let mut secrets = secrets_app::Authenticator::<_>::new(client);
         let mut response = heapless::Vec::<u8, { 3 * 1024 }>::new();
 
         // let data = fs::read_to_string(args.file_name).unwrap();
@@ -54,14 +54,14 @@ fn main() -> Result<(), ()> {
         let commands = parse(data.as_ref());
         for data in commands {
             if let Ok(command) = iso7816::Command::<{ 10 * 255 }>::try_from(data) {
-                if let Ok(cmd) = oath_authenticator::Command::try_from(&command) {
+                if let Ok(cmd) = secrets_app::Command::try_from(&command) {
                     println!(">>> {:?}", cmd);
                 } else {
                     println!(">>> (unparsed) {:?}", command);
                 }
 
                 response.clear();
-                let res = oath.respond(&command, &mut response);
+                let res = secrets.respond(&command, &mut response);
                 println!("<<< {:?} {:?}", res, response);
             }
         }

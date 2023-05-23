@@ -1,4 +1,9 @@
-# oath-authenticator
+<!--
+Copyright (C) 2023 Nitrokey GmbH
+SPDX-License-Identifier: CC0-1.0
+-->
+
+# Secrets App
 
 OATH authenticator [Trussed][trussed]<sup>®</sup> app.
 
