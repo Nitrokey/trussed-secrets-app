@@ -32,12 +32,12 @@ log = { version = "0.4.14", default-features = false }
 pretty_env_logger = "0.4.0"
 
 # below are for running the usbip example
-trussed-usbip = { git = "https://github.com/trussed-dev/pc-usbip-runner", default-features = false, features = ["ctaphid"], rev = "f3a680ca4c9a1411838ae0774f1713f79d4c2979" }
+trussed-usbip = { version = "0.0.1", features = ["ctaphid"], default-features = false }
 usbd-ctaphid = "0.1"
 clap = { version = "3.0.0", features = ["cargo", "derive"] }
 clap-num = "1.0.0"
 delog = { version = "0.1.6", features = ["std-log"] }
-fido-authenticator = { git = "https://github.com/Nitrokey/fido-authenticator", tag = "v0.1.1-nitrokey.4",  features = ["dispatch", "log-all"] }
+fido-authenticator = "0.1.1"
 
 admin-app = { version = "0.1", features = ["log-all"] }
 
@@ -75,5 +75,13 @@ required-features = ["ctaphid", "devel"]
 
 [patch.crates-io]
 flexiber = { git = "https://github.com/Nitrokey/flexiber", tag = "0.1.1.nitrokey" }
-trussed = { git = "https://github.com/Nitrokey/trussed", tag = "v0.1.0-nitrokey.11" }
-trussed-auth = { git = "https://github.com/trussed-dev/trussed-auth/", tag = "v0.2.2" }
+trussed = { git = "https://github.com/sosthene-nitrokey/trussed.git", rev = "6f095e14b27bd58ab8fa56cf6c616266d92fbfb4" }
+littlefs2 = { git =  "https://github.com/Nitrokey/littlefs2", tag = "v0.3.2-nitrokey-2" }
+trussed-auth = { git = "https://github.com/trussed-dev/trussed-auth.git" , rev = "0ac8f49608d1b5dab6ee72abf5dca88fb4c9ecff" }
+ref-swap = { git = "https://github.com/nitrokey/ref-swap.git", rev = "de0330e85b479074ae03bcc05888cfeff682f61e" }
+ctaphid-dispatch = { git = "https://github.com/sosthene-nitrokey/ctaphid-dispatch.git", rev = "a5a3696d7cf0665414cf57cdea384dbc8a157f33" }
+usbd-ctaphid = { git = "https://github.com/trussed-dev/usbd-ctaphid.git", rev = "2a35535e80255043429267d8ea07c063e76b94ab"}
+trussed-usbip = { git = "https://github.com/trussed-dev/pc-usbip-runner.git", rev = "ef1750e648bd36b28a80851eb8a6fb885db79932" }
+fido-authenticator = { git = "https://github.com/Nitrokey/fido-authenticator.git", rev = "76d3d88b374658d96bd3fe8bb02775f954db11c3" }
+admin-app = { git = "https://github.com/Nitrokey/admin-app.git", rev = "b885407aa59f43cbac949fe119e1af6323a7289b" }
+
