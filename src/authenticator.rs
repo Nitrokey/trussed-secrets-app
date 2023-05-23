@@ -3,13 +3,12 @@ use core::convert::TryInto;
 #[cfg(feature = "brute-force-delay")]
 use core::time::Duration;
 
-use flexiber::{Encodable, EncodableHeapless};
+use flexiber::EncodableHeapless;
 use heapless_bytes::Bytes;
-use iso7816::Status::{NotEnoughMemory, NotFound, UnspecifiedNonpersistentExecutionError};
 use iso7816::{Data, Status};
 use trussed::types::Location;
 use trussed::types::{KeyId, Message};
-use trussed::{client, syscall, try_syscall, types::PathBuf};
+use trussed::{self, client, syscall, try_syscall};
 
 use crate::calculate::hmac_challenge;
 use crate::command::CredentialData::HmacData;
@@ -66,6 +65,7 @@ impl Options {
 }
 
 /// The TOTP authenticator Trussed® app.
+#[allow(missing_debug_implementations)]
 pub struct Authenticator<T> {
     options: Options,
     state: State,
@@ -110,7 +110,7 @@ impl flexiber::Encodable for OathVersion {
 //      90 00
 
 // 61 0F 79 03 01 00 00 71 08 01 02 03 04 01 02 03 04 90 00
-#[derive(Clone, Copy, Encodable, Eq, PartialEq)]
+#[derive(Clone, Copy, flexiber::Encodable, Eq, PartialEq)]
 struct AnswerToSelect {
     #[tlv(simple = "0x79")] // Tag::Version
     version: OathVersion,
@@ -141,7 +141,7 @@ impl flexiber::Encodable for SerialType {
     }
 }
 
-#[derive(Clone, Copy, Encodable, Eq, PartialEq)]
+#[derive(Clone, Copy, flexiber::Encodable, Eq, PartialEq)]
 struct PINAnswerToSelect {
     #[tlv(simple = "0x79")] // Tag::Version
     version: OathVersion,
@@ -153,7 +153,7 @@ struct PINAnswerToSelect {
     serial: SerialType,
 }
 
-#[derive(Clone, Copy, Encodable, Eq, PartialEq)]
+#[derive(Clone, Copy, flexiber::Encodable, Eq, PartialEq)]
 struct ChallengingAnswerToSelect {
     #[tlv(simple = "0x79")] // Tag::Version
     version: OathVersion,
@@ -219,8 +219,8 @@ where
         + trussed_auth::AuthClient,
 {
     // const CREDENTIAL_DIRECTORY: &'static str = "cred";
-    fn credential_directory() -> PathBuf {
-        PathBuf::from("cred")
+    fn credential_directory() -> trussed::types::PathBuf {
+        trussed::types::PathBuf::from("cred")
     }
 
     pub fn new(trussed: T, options: Options) -> Self {
@@ -414,8 +414,10 @@ where
         for loc in [Location::Volatile, self.options.location] {
             info_now!(":: reset - delete all keys and files in {:?}", loc);
             try_syscall!(self.trussed.delete_all(loc)).map_err(|_| Status::NotEnoughMemory)?;
-            try_syscall!(self.trussed.remove_dir_all(loc, PathBuf::new()))
-                .map_err(|_| Status::NotEnoughMemory)?;
+            try_syscall!(self
+                .trussed
+                .remove_dir_all(loc, trussed::types::PathBuf::new()))
+            .map_err(|_| Status::NotEnoughMemory)?;
         }
 
         debug_now!(":: reset over");
@@ -446,7 +448,7 @@ where
                 _deletion_result
             );
         } else {
-            return Err(NotFound);
+            return Err(Status::NotFound);
         }
         Ok(())
     }
@@ -508,7 +510,7 @@ where
                 Self::credential_directory(),
                 None
             ))
-            .map_err(|_| iso7816::Status::KeyReferenceNotFound)?
+            .map_err(|_| Status::KeyReferenceNotFound)?
             .data;
 
             // Rewind if needed, otherwise return first file's content
@@ -516,10 +518,10 @@ where
                 if file_index > 0 {
                     for _ in 0..file_index - 1 {
                         try_syscall!(self.trussed.read_dir_files_next())
-                            .map_err(|_| iso7816::Status::KeyReferenceNotFound)?;
+                            .map_err(|_| Status::KeyReferenceNotFound)?;
                     }
                     try_syscall!(self.trussed.read_dir_files_next())
-                        .map_err(|_| iso7816::Status::KeyReferenceNotFound)?
+                        .map_err(|_| Status::KeyReferenceNotFound)?
                         .data
                 } else {
                     first_file
@@ -653,7 +655,7 @@ where
             hex_filename[2 * i + 1] = LOOKUP[(value & 0xF) as usize];
         }
 
-        let filename = PathBuf::from(hex_filename.as_ref());
+        let filename = trussed::types::PathBuf::from(hex_filename.as_ref());
         let mut path = Self::credential_directory();
         path.push(&filename);
         info_now!("filename: {}", path.as_str_ref_with_trailing_nul());
@@ -769,7 +771,7 @@ where
         self.require_touch_if_needed(&credential)?;
 
         Self::try_to_serialize_credential_for_get_credential(credential, reply)
-            .map_err(|_| UnspecifiedNonpersistentExecutionError)?;
+            .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?;
         Ok(())
     }
 
@@ -1207,7 +1209,7 @@ where
             BACKEND_USER_PIN_ID,
             Bytes::from_slice(password).map_err(|_| iso7816::Status::IncorrectDataParameter)?
         ))
-        .map_err(|_| iso7816::Status::SecurityStatusNotSatisfied)?;
+        .map_err(|_| Status::SecurityStatusNotSatisfied)?;
         if !(reply.success) {
             Err(Status::SecurityStatusNotSatisfied)
         } else {
@@ -1234,20 +1236,20 @@ where
         Ok(())
     }
 
-    fn _debug_trussed_backend_error(_e: trussed::Error, _l: u32) -> iso7816::Status {
+    fn _debug_trussed_backend_error(_e: trussed::Error, _l: u32) -> Status {
         info_now!("Trussed backend error: {:?} (line {:?})", _e, _l);
-        iso7816::Status::UnspecifiedNonpersistentExecutionError
+        Status::UnspecifiedNonpersistentExecutionError
     }
 
     fn _extension_change_pin(&mut self, password: &[u8], new_password: &[u8]) -> Result {
         let r = try_syscall!(self.trussed.change_pin(
             BACKEND_USER_PIN_ID,
-            Bytes::from_slice(password).map_err(|_| iso7816::Status::IncorrectDataParameter)?,
-            Bytes::from_slice(new_password).map_err(|_| iso7816::Status::IncorrectDataParameter)?,
+            Bytes::from_slice(password).map_err(|_| Status::IncorrectDataParameter)?,
+            Bytes::from_slice(new_password).map_err(|_| Status::IncorrectDataParameter)?,
         ))
         .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
         if !r.success {
-            return Err(iso7816::Status::VerificationFailed);
+            return Err(Status::VerificationFailed);
         }
         Ok(())
     }
@@ -1406,7 +1408,7 @@ where
             let signature = hmac_challenge(&mut self.trussed, data.algorithm, req.challenge, key)?;
             reply
                 .extend_from_slice(signature.as_slice())
-                .map_err(|_| NotEnoughMemory)?;
+                .map_err(|_| Status::NotEnoughMemory)?;
             Ok(())
         } else {
             Err(Status::IncorrectDataParameter)
@@ -1420,14 +1422,14 @@ where
         let firmware_version = &[v.major, v.minor, v.patch];
         reply
             .extend_from_slice(firmware_version)
-            .map_err(|_| NotEnoughMemory)?;
+            .map_err(|_| Status::NotEnoughMemory)?;
 
         // Add filler to match the expected 6 bytes
         // TODO Check the actual data format for the YK request
         let other_data = &[0x42, 0x42, 0x42];
         reply
             .extend_from_slice(other_data)
-            .map_err(|_| NotEnoughMemory)?;
+            .map_err(|_| Status::NotEnoughMemory)?;
         Ok(())
     }
 
@@ -1435,7 +1437,7 @@ where
         // Get 4-byte serial
         reply
             .extend_from_slice(&self.options.serial_number)
-            .map_err(|_| NotEnoughMemory)?;
+            .map_err(|_| Status::NotEnoughMemory)?;
         Ok(())
     }
 

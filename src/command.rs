@@ -4,14 +4,13 @@ use flexiber::{SimpleTag, TagLike};
 use serde::{Deserialize, Serialize};
 
 use iso7816::command::class::Class;
-use iso7816::Status::InstructionNotSupportedOrInvalid;
 use iso7816::{Data, Instruction, Status};
 use YkCommand::GetSerial;
 
-use crate::oath::{Kind, Tag, YkCommand};
+use crate::oath::{Tag, YkCommand};
 use crate::{ensure, oath};
 
-const FAILED_PARSING_ERROR: Status = iso7816::Status::IncorrectDataParameter;
+const FAILED_PARSING_ERROR: Status = Status::IncorrectDataParameter;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Command<'l> {
@@ -127,10 +126,7 @@ pub struct Select<'l> {
 }
 
 impl core::fmt::Debug for Select<'_> {
-    fn fmt(
-        &self,
-        fmt: &mut core::fmt::Formatter<'_>,
-    ) -> core::result::Result<(), core::fmt::Error> {
+    fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> Result<(), core::fmt::Error> {
         fmt.debug_struct("Select")
             .field("aid", &hex_str!(&self.aid, 5))
             .finish()
@@ -164,7 +160,7 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for SetPassword<'l> {
         let mut decoder = flexiber::Decoder::new(data);
         let slice: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
         ensure(
-            slice.tag() == (oath::Tag::Key as u8).try_into().unwrap(),
+            slice.tag() == (Tag::Key as u8).try_into().unwrap(),
             FAILED_PARSING_ERROR,
         )?;
         if slice.as_bytes().len() < 2 {
@@ -179,7 +175,7 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for SetPassword<'l> {
 
         let slice: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
         ensure(
-            slice.tag() == (oath::Tag::Challenge as u8).try_into().unwrap(),
+            slice.tag() == (Tag::Challenge as u8).try_into().unwrap(),
             FAILED_PARSING_ERROR,
         )?;
         let challenge = slice.as_bytes();
@@ -187,7 +183,7 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for SetPassword<'l> {
 
         let slice: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
         ensure(
-            slice.tag() == (oath::Tag::Response as u8).try_into().unwrap(),
+            slice.tag() == (Tag::Response as u8).try_into().unwrap(),
             FAILED_PARSING_ERROR,
         )?;
         let response = slice.as_bytes();
@@ -217,14 +213,14 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Validate<'l> {
 
         let slice: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
         ensure(
-            slice.tag() == (oath::Tag::Response as u8).try_into().unwrap(),
+            slice.tag() == (Tag::Response as u8).try_into().unwrap(),
             FAILED_PARSING_ERROR,
         )?;
         let response = slice.as_bytes();
 
         let slice: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
         ensure(
-            slice.tag() == (oath::Tag::Challenge as u8).try_into().unwrap(),
+            slice.tag() == (Tag::Challenge as u8).try_into().unwrap(),
             FAILED_PARSING_ERROR,
         )?;
         let challenge = slice.as_bytes();
@@ -250,14 +246,14 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for VerifyCode<'l> {
 
         let first: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
         ensure(
-            first.tag() == (oath::Tag::Name as u8).try_into().unwrap(),
+            first.tag() == (Tag::Name as u8).try_into().unwrap(),
             FAILED_PARSING_ERROR,
         )?;
         let label = first.as_bytes();
 
         let slice: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
         ensure(
-            slice.tag() == (oath::Tag::Response as u8).try_into().unwrap(),
+            slice.tag() == (Tag::Response as u8).try_into().unwrap(),
             FAILED_PARSING_ERROR,
         )?;
         let response = u32::from_be_bytes(
@@ -284,7 +280,7 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for SetPin<'l> {
 
         let first: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
         ensure(
-            first.tag() == (oath::Tag::Password as u8).try_into().unwrap(),
+            first.tag() == (Tag::Password as u8).try_into().unwrap(),
             FAILED_PARSING_ERROR,
         )?;
         let password = first.as_bytes();
@@ -306,7 +302,7 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for GetCredential<'l> {
 
         let first: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
         ensure(
-            first.tag() == (oath::Tag::Name as u8).try_into().unwrap(),
+            first.tag() == (Tag::Name as u8).try_into().unwrap(),
             FAILED_PARSING_ERROR,
         )?;
         let label = first.as_bytes();
@@ -329,14 +325,14 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for ChangePin<'l> {
 
         let first: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
         ensure(
-            first.tag() == (oath::Tag::Password as u8).try_into().unwrap(),
+            first.tag() == (Tag::Password as u8).try_into().unwrap(),
             FAILED_PARSING_ERROR,
         )?;
         let password = first.as_bytes();
 
         let second: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
         ensure(
-            second.tag() == (oath::Tag::NewPassword as u8).try_into().unwrap(),
+            second.tag() == (Tag::NewPassword as u8).try_into().unwrap(),
             FAILED_PARSING_ERROR,
         )?;
         let new_password = second.as_bytes();
@@ -361,7 +357,7 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for VerifyPin<'l> {
 
         let first: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
         ensure(
-            first.tag() == (oath::Tag::Password as u8).try_into().unwrap(),
+            first.tag() == (Tag::Password as u8).try_into().unwrap(),
             FAILED_PARSING_ERROR,
         )?;
         let password = first.as_bytes();
@@ -384,14 +380,14 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Calculate<'l> {
 
         let first: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
         ensure(
-            first.tag() == (oath::Tag::Name as u8).try_into().unwrap(),
+            first.tag() == (Tag::Name as u8).try_into().unwrap(),
             FAILED_PARSING_ERROR,
         )?;
         let label = first.as_bytes();
 
         let second: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
         ensure(
-            second.tag() == (oath::Tag::Challenge as u8).try_into().unwrap(),
+            second.tag() == (Tag::Challenge as u8).try_into().unwrap(),
             FAILED_PARSING_ERROR,
         )?;
         let challenge = second.as_bytes();
@@ -413,7 +409,7 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for CalculateAll<'l> {
 
         let first: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
         ensure(
-            first.tag() == (oath::Tag::Challenge as u8).try_into().unwrap(),
+            first.tag() == (Tag::Challenge as u8).try_into().unwrap(),
             FAILED_PARSING_ERROR,
         )?;
         let challenge = first.as_bytes();
@@ -428,10 +424,7 @@ pub struct Delete<'l> {
 }
 
 impl core::fmt::Debug for Delete<'_> {
-    fn fmt(
-        &self,
-        fmt: &mut core::fmt::Formatter<'_>,
-    ) -> core::result::Result<(), core::fmt::Error> {
+    fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> Result<(), core::fmt::Error> {
         fmt.debug_struct("Credential")
             .field(
                 "label",
@@ -442,14 +435,14 @@ impl core::fmt::Debug for Delete<'_> {
 }
 
 impl<'l, const C: usize> TryFrom<&'l Data<C>> for Delete<'l> {
-    type Error = iso7816::Status;
+    type Error = Status;
     fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
         use flexiber::TaggedSlice;
         let mut decoder = flexiber::Decoder::new(data);
 
         let first: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
         ensure(
-            first.tag() == (oath::Tag::Name as u8).try_into().unwrap(),
+            first.tag() == (Tag::Name as u8).try_into().unwrap(),
             FAILED_PARSING_ERROR,
         )?;
         let label = first.as_bytes();
@@ -459,7 +452,7 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Delete<'l> {
 }
 
 impl<'l, const C: usize> TryFrom<&'l Data<C>> for ListCredentials {
-    type Error = iso7816::Status;
+    type Error = Status;
     fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
         let v = if !data.is_empty() { data[0] } else { 0 };
         Ok(ListCredentials { version: v })
@@ -557,7 +550,7 @@ impl<'a> flexiber::Decodable<'a> for Properties {
 }
 impl flexiber::Tagged for Properties {
     fn tag() -> flexiber::Tag {
-        flexiber::Tag::try_from(oath::Tag::Property as u8).unwrap()
+        flexiber::Tag::try_from(Tag::Property as u8).unwrap()
     }
 }
 
@@ -577,38 +570,37 @@ impl EncryptionKeyType {
     }
 }
 
-impl TryFrom<oath::Tag> for SimpleTag {
-    type Error = iso7816::Status;
+impl TryFrom<Tag> for SimpleTag {
+    type Error = Status;
 
     fn try_from(value: Tag) -> Result<Self, Self::Error> {
-        SimpleTag::try_from(value as u8)
-            .map_err(|_| iso7816::Status::UnspecifiedPersistentExecutionError)
+        SimpleTag::try_from(value as u8).map_err(|_| Status::UnspecifiedPersistentExecutionError)
     }
 }
 
-impl TryFrom<SimpleTag> for oath::Tag {
-    type Error = iso7816::Status;
+impl TryFrom<SimpleTag> for Tag {
+    type Error = Status;
 
     fn try_from(value: SimpleTag) -> Result<Self, Self::Error> {
         Tag::try_from(value.embedding().number as u8)
-            .map_err(|_| iso7816::Status::UnspecifiedPersistentExecutionError)
+            .map_err(|_| Status::UnspecifiedPersistentExecutionError)
     }
 }
 
 impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
-    type Error = iso7816::Status;
+    type Error = Status;
 
     fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
         // All fields of the OTP Credential are obligatory
         // The PWS entries are optional
         use flexiber::Decodable;
-        type TaggedSlice<'a> = flexiber::TaggedSlice<'a, flexiber::SimpleTag>;
+        type TaggedSlice<'a> = flexiber::TaggedSlice<'a, SimpleTag>;
         let mut decoder = flexiber::Decoder::new(data);
 
         // first comes the label of the credential, with Tag::Name
         let first: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
         ensure(
-            first.tag() == (oath::Tag::Name as u8).try_into().unwrap(),
+            first.tag() == (Tag::Name as u8).try_into().unwrap(),
             FAILED_PARSING_ERROR,
         )?;
         let label = first.as_bytes();
@@ -619,7 +611,7 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
         let second: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
         second
             .tag()
-            .assert_eq((oath::Tag::Key as u8).try_into().unwrap())
+            .assert_eq((Tag::Key as u8).try_into().unwrap())
             .map_err(|_| FAILED_PARSING_ERROR)?;
 
         if second.as_bytes().len() < 3 {
@@ -660,7 +652,7 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
             // when the counter is not specified or set to zero, ykman does not send it
             counter = Some(0);
             if let Ok(last) = TaggedSlice::decode(&mut decoder) {
-                if last.tag() == (oath::Tag::InitialMovingFactor as u8).try_into().unwrap() {
+                if last.tag() == (Tag::InitialMovingFactor as u8).try_into().unwrap() {
                     let bytes = last.as_bytes();
                     if bytes.len() == 4 {
                         counter = Some(u32::from_be_bytes(bytes.try_into().unwrap()));
@@ -671,7 +663,7 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
         }
 
         let otp_data = match kind {
-            Kind::Hotp | Kind::Totp | Kind::HotpReverse => {
+            oath::Kind::Hotp | oath::Kind::Totp | oath::Kind::HotpReverse => {
                 Some(CredentialData::OtpData(OtpCredentialData {
                     kind,
                     algorithm,
@@ -680,7 +672,7 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
                     counter,
                 }))
             }
-            Kind::Hmac => Some(CredentialData::HmacData(
+            oath::Kind::Hmac => Some(CredentialData::HmacData(
                 HmacData::try_from(algorithm, secret).map_err(|_| FAILED_PARSING_ERROR)?,
             )),
             _ => None,
@@ -696,7 +688,7 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
             let mut next_decoded: Option<TaggedSlice> = decoder.decode().ok();
             while let Some(next) = next_decoded {
                 let tag = next.tag().embedding().number as u8;
-                let tag = oath::Tag::try_from(tag).unwrap();
+                let tag = Tag::try_from(tag).unwrap();
                 let tag_data = next.as_bytes();
 
                 // Following should be caught before this loop
@@ -755,7 +747,7 @@ impl<'l> Command<'l> {
         let instruction_byte: u8 = instruction.into();
         let yk_instruction: oath::YkInstruction = instruction_byte
             .try_into()
-            .map_err(|_| InstructionNotSupportedOrInvalid)?;
+            .map_err(|_| Status::InstructionNotSupportedOrInvalid)?;
         match (class.into_inner(), yk_instruction, p1, p2) {
             // Get serial
             (0x00, oath::YkInstruction::ApiRequest, maybe_cmd_get_serial, 0x00)
@@ -769,7 +761,7 @@ impl<'l> Command<'l> {
             })),
             // Get status
             (0x00, oath::YkInstruction::Status, 0x00, 0x00) => Ok(Self::YkGetStatus),
-            _ => Err(InstructionNotSupportedOrInvalid),
+            _ => Err(Status::InstructionNotSupportedOrInvalid),
         }
     }
 }
@@ -855,7 +847,7 @@ impl<'l, const C: usize> TryFrom<&'l iso7816::Command<C>> for Command<'l> {
                     Self::GetCredential(GetCredential::try_from(data)?)
                 }
                 (0x00, oath::Instruction::SendRemaining, 0x00, 0x00) => Self::SendRemaining,
-                _ => return Err(InstructionNotSupportedOrInvalid),
+                _ => return Err(Status::InstructionNotSupportedOrInvalid),
             })
         }
     }
