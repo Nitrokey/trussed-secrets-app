@@ -1,4 +1,16 @@
 #![cfg_attr(not(test), no_std)]
+#![warn(
+    missing_copy_implementations,
+    missing_debug_implementations,
+    missing_docs,
+    non_ascii_idents,
+    trivial_casts,
+    unused,
+    unused_qualifications,
+    clippy::expect_used,
+    clippy::unwrap_used
+)]
+#![deny(unsafe_code)]
 
 #[macro_use]
 extern crate delog;
