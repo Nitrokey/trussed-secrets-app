@@ -42,6 +42,9 @@ pub struct Options {
 
     /// A serial number to be returned in YK Challenge-Response and Status commands
     pub serial_number: [u8; 4],
+
+    /// A maximum number of credentials allowed to store
+    pub max_resident_credentials_allowed: u16,
 }
 
 impl Options {
@@ -50,12 +53,14 @@ impl Options {
         custom_status_reverse_hotp_success: u8,
         custom_status_reverse_hotp_error: u8,
         serial_number: [u8; 4],
+        max_resident_credentials_allowed: u16,
     ) -> Self {
         Self {
             location,
             custom_status_reverse_hotp_success,
             custom_status_reverse_hotp_error,
             serial_number,
+            max_resident_credentials_allowed,
         }
     }
 }
@@ -588,6 +593,11 @@ where
             && register.credential.encryption_key_type != EncryptionKeyType::PinBased
         {
             self.user_present()?;
+        }
+
+        // Abort if the credentials count limit is reached
+        if self.count_credentials()? >= self.options.max_resident_credentials_allowed {
+            return Err(Status::NotEnoughMemory);
         }
 
         // info_now!("recv {:?}", &register);
@@ -1427,6 +1437,27 @@ where
             .extend_from_slice(&self.options.serial_number)
             .map_err(|_| NotEnoughMemory)?;
         Ok(())
+    }
+
+    fn count_credentials(&mut self) -> Result<u16> {
+        let mut counter: u16 = 0;
+
+        let first_file = try_syscall!(self.trussed.read_dir_files_first(
+            self.options.location,
+            Self::credential_directory(),
+            None
+        ))
+        .map_err(|_| iso7816::Status::KeyReferenceNotFound)?
+        .data;
+        if first_file.is_none() {
+            return Ok(0);
+        }
+        counter += 1;
+
+        while syscall!(self.trussed.read_dir_files_next()).data.is_some() {
+            counter += 1;
+        }
+        Ok(counter)
     }
 }
 

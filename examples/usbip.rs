@@ -300,6 +300,7 @@ impl trussed_usbip::Apps<VirtClient, dispatch::Dispatch> for Apps {
             CustomStatus::ReverseHotpSuccess as u8,
             CustomStatus::ReverseHotpError as u8,
             [0x42, 0x42, 0x42, 0x42],
+            0xFFFF,
         );
         let otp = oath_authenticator::Authenticator::new(
             builder.build("otp", dispatch::BACKENDS),
