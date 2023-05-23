@@ -104,6 +104,7 @@ impl<'l> TryFrom<&'l [u8]> for YkGetHmac<'l> {
         // PKCS#7 padding; possibly incompatible with Yubikey's PKCS#7 version, as it expects
         // the last byte to always be the padding byte value. See KeepassXC implementation comments
         // for the details.
+        // https://github.com/Nitrokey/keepassxc/blob/cf819e0a3f5664fb0e1705217dbebbdf704bdc34/src/keys/drivers/YubiKeyInterfacePCSC.cpp#L730
         // Everything works with the challenge length up to 63 bytes though, and YK implementation
         // would not handle more anyway, hence accepting this potential incompatibility.
         let challenge = Pkcs7::raw_unpad(data).map_err(|_| Status::IncorrectDataParameter)?;
