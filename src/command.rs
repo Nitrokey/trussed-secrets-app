@@ -6,9 +6,9 @@ use serde::{Deserialize, Serialize};
 use iso7816::command::class::Class;
 use iso7816::Status::InstructionNotSupportedOrInvalid;
 use iso7816::{Data, Instruction, Status};
-use YKCommand::GetSerial;
+use YkCommand::GetSerial;
 
-use crate::oath::{Kind, Tag, YKCommand};
+use crate::oath::{Kind, Tag, YkCommand};
 use crate::{ensure, oath};
 
 const FAILED_PARSING_ERROR: Status = iso7816::Status::IncorrectDataParameter;
@@ -48,20 +48,20 @@ pub enum Command<'l> {
     /// Get Credential data
     GetCredential(GetCredential<'l>),
 
-    YKSerial,
-    YKGetStatus,
-    YKGetHmac(YKGetHmac<'l>),
+    YkSerial,
+    YkGetStatus,
+    YkGetHmac(YkGetHmac<'l>),
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
-pub struct YKGetHmac<'l> {
+pub struct YkGetHmac<'l> {
     /// challenge, padded with PKCS#7 to 64 bytes
     pub challenge: &'l [u8],
     /// The P1 parameter selecting the command, or the HMAC slot
-    pub slot_cmd: Option<YKCommand>,
+    pub slot_cmd: Option<YkCommand>,
 }
 
-impl<'l, const C: usize> TryFrom<&'l Data<C>> for YKGetHmac<'l> {
+impl<'l, const C: usize> TryFrom<&'l Data<C>> for YkGetHmac<'l> {
     type Error = Status;
     fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
         Ok(Self {
@@ -71,11 +71,11 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for YKGetHmac<'l> {
     }
 }
 
-impl<'l> YKGetHmac<'l> {
+impl<'l> YkGetHmac<'l> {
     pub fn get_credential_label(&self) -> Result<&[u8], Status> {
         Ok(match self.slot_cmd.ok_or(Status::IncorrectDataParameter)? {
-            YKCommand::HmacSlot1 => "HmacSlot1",
-            YKCommand::HmacSlot2 => "HmacSlot2",
+            YkCommand::HmacSlot1 => "HmacSlot1",
+            YkCommand::HmacSlot2 => "HmacSlot2",
             _ => {
                 return Err(Status::IncorrectDataParameter);
             }
@@ -83,20 +83,20 @@ impl<'l> YKGetHmac<'l> {
         .as_bytes())
     }
     fn with_slot(&self, slot: u8) -> Result<Self, Status> {
-        let slot = YKCommand::try_from(slot)?;
+        let slot = YkCommand::try_from(slot)?;
         match slot {
-            YKCommand::HmacSlot1 => {}
-            YKCommand::HmacSlot2 => {}
+            YkCommand::HmacSlot1 => {}
+            YkCommand::HmacSlot2 => {}
             _ => return Err(Status::IncorrectDataParameter),
         };
-        Ok(YKGetHmac {
+        Ok(YkGetHmac {
             challenge: self.challenge,
             slot_cmd: Some(slot),
         })
     }
 }
 
-impl<'l> TryFrom<&'l [u8]> for YKGetHmac<'l> {
+impl<'l> TryFrom<&'l [u8]> for YkGetHmac<'l> {
     type Error = Status;
     fn try_from(data: &'l [u8]) -> Result<Self, Self::Error> {
         // Input data should always be padded to 64 bytes
@@ -752,22 +752,22 @@ impl<'l> Command<'l> {
         data: &'l [u8],
     ) -> Result<Self, Status> {
         let instruction_byte: u8 = instruction.into();
-        let yk_instruction: oath::YKInstruction = instruction_byte
+        let yk_instruction: oath::YkInstruction = instruction_byte
             .try_into()
             .map_err(|_| InstructionNotSupportedOrInvalid)?;
         match (class.into_inner(), yk_instruction, p1, p2) {
             // Get serial
-            (0x00, oath::YKInstruction::ApiRequest, maybe_cmd_get_serial, 0x00)
+            (0x00, oath::YkInstruction::ApiRequest, maybe_cmd_get_serial, 0x00)
                 if maybe_cmd_get_serial == GetSerial.as_u8() =>
             {
-                Ok(Self::YKSerial)
+                Ok(Self::YkSerial)
             }
             // Get HMAC slot command
-            (0x00, oath::YKInstruction::ApiRequest, slot, 0x00) => Ok(Self::YKGetHmac({
-                YKGetHmac::try_from(data)?.with_slot(slot)?
+            (0x00, oath::YkInstruction::ApiRequest, slot, 0x00) => Ok(Self::YkGetHmac({
+                YkGetHmac::try_from(data)?.with_slot(slot)?
             })),
             // Get status
-            (0x00, oath::YKInstruction::Status, 0x00, 0x00) => Ok(Self::YKGetStatus),
+            (0x00, oath::YkInstruction::Status, 0x00, 0x00) => Ok(Self::YkGetStatus),
             _ => Err(InstructionNotSupportedOrInvalid),
         }
     }
