@@ -5,6 +5,7 @@ use crate::command::{
 use crate::oath::{Algorithm, Kind};
 use crate::{command, oath};
 use iso7816::Status;
+use iso7816::Status::IncorrectDataParameter;
 use serde::{Deserialize, Serialize};
 use trussed::types::ShortData;
 
@@ -127,10 +128,10 @@ impl CredentialFlat {
                     counter: self.counter,
                 }))
             }
-            Kind::Hmac => Some(CredentialData::HmacData(HmacData {
-                algorithm: self.algorithm,
-                secret: &self.secret,
-            })),
+            Kind::Hmac => Some(CredentialData::HmacData(
+                HmacData::try_from(self.algorithm, &self.secret)
+                    .map_err(|_| IncorrectDataParameter)?,
+            )),
             Kind::NotSet => None, // PWS only? do nothing
         };
 
@@ -147,6 +148,8 @@ impl CredentialFlat {
     }
 
     pub fn try_from(credential: &command::Credential) -> Result<Self, ()> {
+        // Assuming here all the data validation was done on the upstream struct construction.
+        // Here we are simply passing it without checking.
         let mut cred = Self {
             label: ShortData::from_slice(credential.label)?,
             touch_required: credential.touch_required,
