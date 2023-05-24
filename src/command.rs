@@ -26,7 +26,7 @@ pub enum Command<'l> {
     /// Delete a credential.
     Delete(Delete<'l>),
     /// List all credentials.
-    ListCredentials,
+    ListCredentials(ListCredentials),
     /// Register a new credential.
     Register(Register<'l>),
     /// Delete all credentials and rotate the salt.
@@ -466,6 +466,19 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Delete<'l> {
     }
 }
 
+impl<'l, const C: usize> TryFrom<&'l Data<C>> for ListCredentials {
+    type Error = iso7816::Status;
+    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
+        let v = if data.len() > 0 { data[0] } else { 0 };
+        Ok(ListCredentials { version: v })
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ListCredentials {
+    pub version: u8,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Register<'l> {
     pub credential: Credential<'l>,
@@ -804,7 +817,9 @@ impl<'l, const C: usize> TryFrom<&'l iso7816::Command<C>> for Command<'l> {
                 (0x00, oath::Instruction::Delete, 0x00, 0x00) => {
                     Self::Delete(Delete::try_from(data)?)
                 }
-                (0x00, oath::Instruction::List, 0x00, 0x00) => Self::ListCredentials,
+                (0x00, oath::Instruction::List, 0x00, 0x00) => {
+                    Self::ListCredentials(ListCredentials::try_from(data)?)
+                }
                 (0x00, oath::Instruction::Put, 0x00, 0x00) => {
                     Self::Register(Register::try_from(data)?)
                 }
