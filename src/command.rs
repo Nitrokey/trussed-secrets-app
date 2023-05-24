@@ -7,8 +7,8 @@ use iso7816::Status::InstructionNotSupportedOrInvalid;
 use iso7816::{Data, Instruction, Status};
 use YKCommand::GetSerial;
 
-use crate::oath::{Kind, YKCommand};
 use crate::oath::Tag;
+use crate::oath::{Kind, YKCommand};
 use crate::{ensure, oath};
 
 const FAILED_PARSING_ERROR: Status = iso7816::Status::IncorrectDataParameter;
@@ -471,77 +471,48 @@ pub struct Register<'l> {
     pub credential: Credential<'l>,
 }
 
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct Credential<'l> {
     pub label: &'l [u8],
-    pub kind: Option<oath::Kind>,
-    pub algorithm: Option<oath::Algorithm>,
-    pub digits: u8,
-    /// What we get here (inspecting the client app) may not be the raw K, but K' in HMAC lingo,
-    /// i.e., If secret.len() < block size (64B for Sha1/Sha256, 128B for Sha512),
-    /// then it's the hash of the secret.  Otherwise, it's the secret, padded to length
-    /// at least 14B with null bytes. This is of no concern to us, as is it does not
-    /// change the MAC.
-    ///
-    /// The 14 is a bit strange: RFC 4226, section 4 says:
-    /// "The algorithm MUST use a strong shared secret.  The length of the shared secret MUST be
-    /// at least 128 bits.  This document RECOMMENDs a shared secret length of 160 bits."
-    ///
-    /// Meanwhile, the client app just pads up to 14B :)
-    pub secret: Option<&'l [u8]>,
     pub touch_required: bool,
     pub encryption_key_type: EncryptionKeyType,
-    pub counter: Option<u32>,
-
-    pub login: Option<&'l [u8]>,
-    pub password: Option<&'l [u8]>,
-    pub metadata: Option<&'l [u8]>,
+    pub otp: Option<CredentialData<'l>>,
+    pub password_safe: Option<PasswordSafeData<'l>>,
 }
 
-impl core::fmt::Debug for Credential<'_> {
-    fn fmt(
-        &self,
-        fmt: &mut core::fmt::Formatter<'_>,
-    ) -> core::result::Result<(), core::fmt::Error> {
-        fmt.debug_struct("Credential")
-            .field(
-                "label",
-                &core::str::from_utf8(self.label).unwrap_or("invalid UTF8 label"),
-            ) //(format!("{}", &hex_str!(&self.label))))
-            .field("kind", &self.kind)
-            .field("alg", &self.algorithm)
-            .field("digits", &self.digits)
-            .field("secret", &hex_str!(&self.secret.unwrap_or_default(), 4))
-            .field("touch", &self.touch_required)
-            .field("encryption", &self.encryption_key_type)
-            .field("counter", &self.counter)
-            .field(
-                "login",
-                &core::str::from_utf8(self.login.unwrap_or_default())
-                    .unwrap_or("invalid UTF8 login"),
-            )
-            .field(
-                "password",
-                &core::str::from_utf8(self.password.unwrap_or_default())
-                    .unwrap_or("invalid UTF8 password"),
-            )
-            .field(
-                "metadata",
-                &core::str::from_utf8(self.metadata.unwrap_or_default())
-                    .unwrap_or("invalid UTF8 metadata"),
-            )
-            .finish()
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub enum CredentialData<'l> {
+    OtpData(OtpCredentialData<'l>),
+    HmacData(HmacData<'l>),
+}
+
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub struct OtpCredentialData<'l> {
+    pub kind: oath::Kind,
+    pub algorithm: oath::Algorithm,
+    pub digits: u8,
+    pub secret: &'l [u8],
+    pub counter: Option<u32>,
+}
+
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub struct HmacData<'l> {
+    pub algorithm: oath::Algorithm,
+    pub secret: &'l [u8],
+}
+
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub struct PasswordSafeData<'l> {
+    pub login: &'l [u8],
+    pub password: &'l [u8],
+    pub metadata: &'l [u8],
+}
+
+impl<'l> PasswordSafeData<'l> {
+    pub fn non_empty(&self) -> bool {
+        return !self.login.is_empty() || !self.password.is_empty() || !self.metadata.is_empty();
     }
 }
-
-// This is totally broken at the moment in flexiber
-//
-// #[derive(Decodable)]
-// pub struct SerializedPut<'l> {
-//     // #[tlv(simple="oath::Tag::Name as u8")]
-//     #[tlv(simple="0x71")]
-//     pub label: &'l [u8],
-// }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct Properties(u8);
@@ -686,32 +657,33 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
             debug_now!("counter set to {:?}", &counter);
         }
 
-        let kind = Some(kind);
-        let algorithm = Some(algorithm);
-        let secret = Some(secret);
-
-        let mut credential = Credential {
-            label,
-            kind,
-            algorithm,
-            digits,
-            secret,
-            touch_required,
-            encryption_key_type,
-            counter,
-            // To be filled below
-            login: None,
-            password: None,
-            metadata: None,
+        let otp_data = match kind {
+            Kind::Hotp | Kind::Totp | Kind::HotpReverse => {
+                Some(CredentialData::OtpData(OtpCredentialData {
+                    kind,
+                    algorithm,
+                    digits,
+                    secret,
+                    counter,
+                }))
+            }
+            Kind::Hmac => Some(CredentialData::HmacData(HmacData { algorithm, secret })),
+            _ => None,
         };
 
-        let mut next_decoded: Option<TaggedSlice> = decoder.decode().ok();
-        while let Some(next) = next_decoded {
-            let tag = next.tag().embedding().number as u8;
-            let tag = oath::Tag::try_from(tag).unwrap();
-            let tag_data = next.as_bytes();
+        let pws_data = {
+            let mut pws = PasswordSafeData {
+                login: &[],
+                password: &[],
+                metadata: &[],
+            };
 
-            match tag {
+            let mut next_decoded: Option<TaggedSlice> = decoder.decode().ok();
+            while let Some(next) = next_decoded {
+                let tag = next.tag().embedding().number as u8;
+                let tag = oath::Tag::try_from(tag).unwrap();
+                let tag_data = next.as_bytes();
+
                 // Following should be caught before this loop
                 // Tag::Name => {},
                 // Tag::Key => {}
@@ -719,22 +691,38 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
                 // Tag::InitialMovingFactor => {}
                 // Tag::Algorithm => {}
                 // Tag::Touch => {}
-                Tag::PwsLogin => {
-                    credential.login = Some(tag_data);
+
+                match tag {
+                    Tag::PwsLogin => {
+                        pws.login = tag_data;
+                    }
+                    Tag::PwsPassword => {
+                        pws.password = tag_data;
+                    }
+                    Tag::PwsMetadata => {
+                        pws.metadata = tag_data;
+                    }
+                    _ => {
+                        // Unmatched tags should return error
+                        return Err(Status::IncorrectDataParameter);
+                    }
                 }
-                Tag::PwsPassword => {
-                    credential.password = Some(tag_data);
-                }
-                Tag::PwsMetadata => {
-                    credential.metadata = Some(tag_data);
-                }
-                _ => {
-                    // Unmatched tags should return error
-                    return Err(Status::IncorrectDataParameter);
-                }
+                next_decoded = decoder.decode().ok();
             }
-            next_decoded = decoder.decode().ok();
-        }
+            if pws.non_empty() {
+                Some(pws)
+            } else {
+                None
+            }
+        };
+
+        let credential = Credential {
+            label,
+            touch_required,
+            encryption_key_type,
+            otp: otp_data,
+            password_safe: pws_data,
+        };
 
         Ok(Register { credential })
     }

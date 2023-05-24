@@ -1,11 +1,15 @@
-use crate::command::EncryptionKeyType;
+use crate::command::CredentialData::OtpData;
+use crate::command::{
+    CredentialData, EncryptionKeyType, HmacData, OtpCredentialData, PasswordSafeData,
+};
 use crate::oath::{Algorithm, Kind};
 use crate::{command, oath};
+use iso7816::Status;
 use serde::{Deserialize, Serialize};
 use trussed::types::ShortData;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct Credential {
+pub struct CredentialFlat {
     pub label: ShortData,
     #[serde(rename = "K")]
     pub kind: oath::Kind,
@@ -51,27 +55,112 @@ pub struct Credential {
     pub metadata: Option<ShortData>,
 }
 
-impl Credential {
-    pub fn try_from(credential: &command::Credential) -> Result<Self, ()> {
-        Ok(Self {
-            label: ShortData::from_slice(credential.label)?,
-            kind: credential.kind.unwrap_or(Kind::Hotp),
-            algorithm: credential.algorithm.unwrap_or(Algorithm::Sha1),
-            digits: credential.digits,
-            secret: ShortData::from_slice(credential.secret.unwrap_or_default())?,
-            touch_required: credential.touch_required,
-            counter: credential.counter,
-            encryption_key_type: Some(credential.encryption_key_type),
+impl Default for CredentialFlat {
+    fn default() -> Self {
+        CredentialFlat {
+            label: Default::default(),
+            kind: Kind::NotSet,
+            algorithm: Algorithm::Sha1,
+            digits: 6,
+            secret: Default::default(),
+            touch_required: false,
+            counter: None,
+            encryption_key_type: None,
+            login: None,
+            password: None,
+            metadata: None,
+        }
+    }
+}
 
-            login: credential
-                .login
-                .map(|x| ShortData::from_slice(x).unwrap_or_default()),
-            password: credential
-                .password
-                .map(|x| ShortData::from_slice(x).unwrap_or_default()),
-            metadata: credential
-                .metadata
-                .map(|x| ShortData::from_slice(x).unwrap_or_default()),
+impl CredentialFlat {
+    fn get_bytes_or_none_if_empty(x: &[u8]) -> Result<Option<ShortData>, ()> {
+        Ok(if x.len() > 0 {
+            Some(ShortData::from_slice(x)?)
+        } else {
+            None
         })
+    }
+
+    fn get_or_empty_slice_if_none(x: &Option<ShortData>) -> &[u8] {
+        if let Some(x) = x {
+            x.as_slice()
+        } else {
+            &[]
+        }
+    }
+
+    pub fn try_unpack_into_credential(&self) -> Result<command::Credential, Status> {
+        let mut cred = command::Credential {
+            label: &self.label,
+            touch_required: self.touch_required,
+            encryption_key_type: self
+                .encryption_key_type
+                .unwrap_or(EncryptionKeyType::Hardware),
+            otp: None,
+            password_safe: None,
+        };
+
+        cred.otp = match self.kind {
+            Kind::Hotp | Kind::Totp | Kind::HotpReverse => {
+                Some(CredentialData::OtpData(OtpCredentialData {
+                    kind: self.kind,
+                    algorithm: self.algorithm,
+                    digits: self.digits,
+                    secret: &self.secret,
+                    counter: self.counter,
+                }))
+            }
+            Kind::Hmac => Some(CredentialData::HmacData(HmacData {
+                algorithm: self.algorithm,
+                secret: &self.secret,
+            })),
+            Kind::NotSet => None, // PWS only? do nothing
+        };
+
+        let p = PasswordSafeData {
+            login: Self::get_or_empty_slice_if_none(&self.login),
+            password: Self::get_or_empty_slice_if_none(&self.password),
+            metadata: Self::get_or_empty_slice_if_none(&self.metadata),
+        };
+        if p.non_empty() {
+            cred.password_safe = Some(p);
+        }
+
+        Ok(cred)
+    }
+
+    pub fn try_from(credential: &command::Credential) -> Result<Self, ()> {
+        let mut cred = Self {
+            label: ShortData::from_slice(credential.label)?,
+            touch_required: credential.touch_required,
+            encryption_key_type: Some(credential.encryption_key_type),
+            ..Default::default()
+        };
+
+        if let Some(cd) = credential.otp {
+            match cd {
+                OtpData(otp) => {
+                    cred.kind = otp.kind;
+                    cred.secret = ShortData::from_slice(otp.secret)?;
+                    cred.digits = otp.digits;
+                    cred.algorithm = otp.algorithm;
+                    cred.counter = otp.counter;
+                }
+                CredentialData::HmacData(data) => {
+                    cred.kind = Kind::Hmac;
+                    cred.secret = ShortData::from_slice(data.secret)?;
+                    cred.algorithm = data.algorithm;
+                }
+            }
+        }
+
+        if let Some(pass) = credential.password_safe {
+            cred.login = Self::get_bytes_or_none_if_empty(pass.login)?;
+            cred.password = Self::get_bytes_or_none_if_empty(pass.password)?;
+            cred.metadata = Self::get_bytes_or_none_if_empty(pass.metadata)?;
+        }
+
+        Ok(cred)
     }
 }
