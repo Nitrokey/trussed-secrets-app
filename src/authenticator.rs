@@ -120,7 +120,23 @@ struct AnswerToSelect {
     // instead of '74 00', as with the tagged/Option derivation.
     // #[tlv(simple = "0x74")] // Tag::Challenge
     // challenge: Option<[u8; 8]>,
+    #[tlv(simple = "0x8F")] // Tag::SerialNumber
+    serial: SerialType,
 }
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+struct SerialType([u8; 4]);
+
+impl flexiber::Encodable for SerialType {
+    fn encoded_length(&self) -> flexiber::Result<flexiber::Length> {
+        Ok(u8::try_from(self.0.len()).unwrap().into())
+    }
+
+    fn encode(&self, encoder: &mut flexiber::Encoder) -> flexiber::Result<()> {
+        self.0.as_ref().encode(encoder)
+    }
+}
+
 
 #[derive(Clone, Copy, Encodable, Eq, PartialEq)]
 struct PINAnswerToSelect {
@@ -129,6 +145,9 @@ struct PINAnswerToSelect {
 
     #[tlv(simple = "0x82")] // Tag::PINCounter
     attempt_counter: Option<[u8; 1]>,
+
+    #[tlv(simple = "0x8F")] // Tag::SerialNumber
+    serial: SerialType,
 }
 
 #[derive(Clone, Copy, Encodable, Eq, PartialEq)]
@@ -155,11 +174,11 @@ struct ChallengingAnswerToSelect {
 impl AnswerToSelect {
     /// The salt is stable and used in modified form as "device ID" in ykman.
     /// It gets rotated on device reset.
-    fn new(salt: [u8; 8]) -> Self {
+    fn new(salt: [u8; 8], serial: SerialType) -> Self {
         Self {
             version: Default::default(),
             salt,
-            // challenge: None,
+            serial,
         }
     }
 
@@ -168,6 +187,7 @@ impl AnswerToSelect {
         PINAnswerToSelect {
             version: self.version,
             attempt_counter: c,
+            serial: self.serial,
         }
     }
 
@@ -343,7 +363,7 @@ where
         let state = self
             .state
             .with_persistent(&mut self.trussed, |_, state| state.clone());
-        let answer_to_select = AnswerToSelect::new(state.salt);
+        let answer_to_select = AnswerToSelect::new(state.salt, SerialType(self.options.serial_number));
 
         let data: heapless::Vec<u8, 128> = if self._extension_is_pin_set()? {
             answer_to_select
@@ -758,9 +778,6 @@ where
             }
             _ => {
                 // This credential kind should never be accessed through calculate()
-                return Err(Status::SecurityStatusNotSatisfied);
-            }
-            _ => {
                 return Err(Status::ConditionsOfUseNotSatisfied);
             }
         };
