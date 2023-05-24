@@ -40,7 +40,7 @@ the protocol-compatible applications, like the mentioned KeepassXC.
 
 OTP support works reasonably well, with the following remarks:
 
-1. Shared secret key length could be 320 bits and longer.
+1. Shared secret key length can be 320 bits (40 bytes) or longer.
 2. HOTP implementation allows using only 32 bit counter for the initialization as of now.
 3. Usage confirmation through the touch button gesture (aka UP confirmation) can be set during the credential
    registration.
