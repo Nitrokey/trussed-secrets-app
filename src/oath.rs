@@ -123,15 +123,15 @@ pub enum Properties {
 
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum YKInstruction {
+pub enum YkInstruction {
     ApiRequest = 0x01,
     Status = 0x03,
 }
 
-impl TryFrom<u8> for YKInstruction {
+impl TryFrom<u8> for YkInstruction {
     type Error = iso7816::Status;
     fn try_from(byte: u8) -> Result<Self, Self::Error> {
-        use YKInstruction::*;
+        use YkInstruction::*;
         Ok(match byte {
             0x01 => ApiRequest,
             0x03 => Status,
@@ -142,17 +142,17 @@ impl TryFrom<u8> for YKInstruction {
 
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum YKCommand {
+pub enum YkCommand {
     GetSerial = 0x10,
     HmacSlot1 = 0x30,
     HmacSlot2 = 0x38,
 }
 
-impl TryFrom<u8> for YKCommand {
+impl TryFrom<u8> for YkCommand {
     type Error = Status;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        use YKCommand::*;
+        use YkCommand::*;
         Ok(match value {
             0x10 => GetSerial,
             0x30 => HmacSlot1,
@@ -162,19 +162,19 @@ impl TryFrom<u8> for YKCommand {
     }
 }
 
-impl From<YKCommand> for u8 {
-    fn from(val: YKCommand) -> Self {
+impl From<YkCommand> for u8 {
+    fn from(val: YkCommand) -> Self {
         val.as_u8()
     }
 }
 
-impl YKCommand {
+impl YkCommand {
     pub fn as_u8(&self) -> u8 {
         *self as u8
     }
 }
 
-impl PartialEq<u8> for YKCommand {
+impl PartialEq<u8> for YkCommand {
     fn eq(&self, other: &u8) -> bool {
         *self as u8 == *other
     }

@@ -5,9 +5,7 @@ use core::time::Duration;
 
 use flexiber::{Encodable, EncodableHeapless};
 use heapless_bytes::Bytes;
-use iso7816::Status::{
-    NotFound, UnspecifiedNonpersistentExecutionError, UnspecifiedPersistentExecutionError,
-};
+use iso7816::Status::{NotEnoughMemory, NotFound, UnspecifiedNonpersistentExecutionError};
 use iso7816::{Data, Status};
 use trussed::types::Location;
 use trussed::types::{KeyId, Message};
@@ -15,9 +13,9 @@ use trussed::{client, syscall, try_syscall, types::PathBuf};
 
 use crate::calculate::hmac_challenge;
 use crate::command::CredentialData::HmacData;
-use crate::command::{Credential, EncryptionKeyType, ListCredentials, VerifyCode, YKGetHMAC};
+use crate::command::{Credential, EncryptionKeyType, ListCredentials, VerifyCode, YkGetHmac};
 use crate::credential::CredentialFlat;
-use crate::oath::Algorithm;
+
 use crate::{
     command, ensure, oath,
     state::{CommandState, State},
@@ -322,9 +320,9 @@ where
             Command::SetPin(spin) => self.set_pin(spin, reply),
             Command::ChangePin(cpin) => self.change_pin(cpin, reply),
 
-            Command::YKSerial => self.yk_serial(reply),
-            Command::YKGetStatus => self.yk_status(reply),
-            Command::YKGetHMAC(req) => self.yk_hmac(req, reply),
+            Command::YkSerial => self.yk_serial(reply),
+            Command::YkGetStatus => self.yk_status(reply),
+            Command::YkGetHmac(req) => self.yk_hmac(req, reply),
 
             Command::SendRemaining => self.send_remaining(reply),
             _ => Err(Status::ConditionsOfUseNotSatisfied),
@@ -619,7 +617,11 @@ where
         );
 
         if write_res.is_err() {
-            warn_now!("Failed serialization of {:?}: {:?}", &credential.label, write_res);
+            warn_now!(
+                "Failed serialization of {:?}: {:?}",
+                &credential.label,
+                write_res
+            );
             // 1. Try to delete the empty file, ignore errors
             let filename = self.filename_for_label(&credential.label);
             try_syscall!(self.trussed.remove_file(self.options.location, filename)).ok();
@@ -735,7 +737,7 @@ where
             if let Some(value) = field {
                 reply.push(*tag as u8)?;
                 reply.push((value.len()) as u8)?;
-                reply.extend_from_slice(&value).map_err(|_| 0)?;
+                reply.extend_from_slice(value).map_err(|_| 0)?;
             }
             if reply.len() > CTAPHID_MESSAGE_SIZE_LIMIT {
                 // Finish early due to the usbd-ctaphid message size limit
@@ -1383,26 +1385,21 @@ where
         return Ok(());
     }
 
-    fn yk_hmac<const R: usize>(&mut self, req: YKGetHMAC, reply: &mut Data<{ R }>) -> Result {
+    fn yk_hmac<const R: usize>(&mut self, req: YkGetHmac, reply: &mut Data<{ R }>) -> Result {
         // Get HMAC slot command
         let credential = self
             .load_credential(req.get_credential_label()?)
             .ok_or(Status::NotFound)?;
         let credential: Credential = credential.try_unpack_into_credential()?;
-        if let Some(otpdata) = credential.otp {
-            if let HmacData(x) = otpdata {
-                let key: &[u8] = x.secret;
-                let signature =
-                    hmac_challenge(&mut self.trussed, Algorithm::Sha1, req.challenge, key)?;
-                reply
-                    .extend_from_slice(signature.as_slice())
-                    .map_err(|_| UnspecifiedNonpersistentExecutionError)?;
-                Ok(())
-            } else {
-                return Err(Status::IncorrectDataParameter);
-            }
+        if let Some(HmacData(data)) = credential.otp {
+            let key: &[u8] = data.secret;
+            let signature = hmac_challenge(&mut self.trussed, data.algorithm, req.challenge, key)?;
+            reply
+                .extend_from_slice(signature.as_slice())
+                .map_err(|_| NotEnoughMemory)?;
+            Ok(())
         } else {
-            return Err(Status::IncorrectDataParameter);
+            Err(Status::IncorrectDataParameter)
         }
     }
 
@@ -1413,14 +1410,14 @@ where
         let firmware_version = &[v.major, v.minor, v.patch];
         reply
             .extend_from_slice(firmware_version)
-            .map_err(|_| UnspecifiedPersistentExecutionError)?;
+            .map_err(|_| NotEnoughMemory)?;
 
         // Add filler to match the expected 6 bytes
         // TODO Check the actual data format for the YK request
         let other_data = &[0x42, 0x42, 0x42];
         reply
             .extend_from_slice(other_data)
-            .map_err(|_| UnspecifiedPersistentExecutionError)?;
+            .map_err(|_| NotEnoughMemory)?;
         Ok(())
     }
 
@@ -1428,7 +1425,7 @@ where
         // Get 4-byte serial
         reply
             .extend_from_slice(&self.options.serial_number)
-            .map_err(|_| UnspecifiedPersistentExecutionError)?;
+            .map_err(|_| NotEnoughMemory)?;
         Ok(())
     }
 }
