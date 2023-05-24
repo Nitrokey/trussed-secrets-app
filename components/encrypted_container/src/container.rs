@@ -63,7 +63,7 @@ use trussed::{
 pub struct EncryptedDataContainer {
     /// The ciphertext. 1024 bytes maximum. Reusing trussed::types::Message.
     #[serde(rename = "D")]
-    data: trussed::types::Message,
+    data: Message,
     #[serde(rename = "T")]
     tag: ContainerTag,
     #[serde(rename = "N")]

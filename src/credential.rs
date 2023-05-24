@@ -1,11 +1,9 @@
-use crate::command::CredentialData::OtpData;
+use crate::command;
 use crate::command::{
     CredentialData, EncryptionKeyType, HmacData, OtpCredentialData, PasswordSafeData,
 };
 use crate::oath::{Algorithm, Kind};
-use crate::{command, oath};
 use iso7816::Status;
-use iso7816::Status::IncorrectDataParameter;
 use serde::{Deserialize, Serialize};
 use trussed::types::ShortData;
 
@@ -13,9 +11,9 @@ use trussed::types::ShortData;
 pub struct CredentialFlat {
     pub label: ShortData,
     #[serde(rename = "K")]
-    pub kind: oath::Kind,
+    pub kind: Kind,
     #[serde(rename = "A")]
-    pub algorithm: oath::Algorithm,
+    pub algorithm: Algorithm,
     #[serde(rename = "D")]
     pub digits: u8,
     /// What we get here (inspecting the client app) may not be the raw K, but K' in HMAC lingo,
@@ -130,7 +128,7 @@ impl CredentialFlat {
             }
             Kind::Hmac => Some(CredentialData::HmacData(
                 HmacData::try_from(self.algorithm, &self.secret)
-                    .map_err(|_| IncorrectDataParameter)?,
+                    .map_err(|_| Status::IncorrectDataParameter)?,
             )),
             Kind::NotSet => None, // PWS only? do nothing
         };
@@ -159,7 +157,7 @@ impl CredentialFlat {
 
         if let Some(cd) = credential.otp {
             match cd {
-                OtpData(otp) => {
+                CredentialData::OtpData(otp) => {
                     cred.kind = otp.kind;
                     cred.secret = ShortData::from_slice(otp.secret)?;
                     cred.digits = otp.digits;

@@ -99,7 +99,7 @@ impl State {
     {
         let encryption_key = self
             .get_encryption_key_from_state(encryption_key_type)
-            .map_err(|_| iso7816::Status::SecurityStatusNotSatisfied)?;
+            .map_err(|_| Status::SecurityStatusNotSatisfied)?;
 
         let data = EncryptedDataContainer::from_obj(trussed, obj, None, encryption_key).map_err(
             |_err| {
@@ -115,7 +115,7 @@ impl State {
         try_syscall!(trussed.write_file(self.location, filename, data_serialized, None)).map_err(
             |_| {
                 debug_now!("Failed to write the file");
-                iso7816::Status::NotEnoughMemory
+                Status::NotEnoughMemory
             },
         )?;
         Ok(())
@@ -155,19 +155,20 @@ impl State {
         for kt in &[EncryptionKeyType::PinBased, EncryptionKeyType::Hardware] {
             debug_now!("Trying decryption with {:?}", kt);
             let encryption_key = self.get_encryption_key_from_state(Some(*kt));
-            if encryption_key.is_err() {
-                debug_now!("Key {:?} is not available", kt);
-                continue;
-            }
 
-            let res = EncryptedDataContainer::decrypt_from_bytes(
-                trussed,
-                &ser_encrypted,
-                encryption_key.unwrap(),
-            );
-            debug_now!("Decryption result with {:?}: {:?}", kt, res.is_ok());
-            if res.is_ok() {
-                return res;
+            match encryption_key {
+                Err(_) => {
+                    debug_now!("Key {:?} is not available", kt);
+                    continue;
+                }
+                Ok(key) => {
+                    let res =
+                        EncryptedDataContainer::decrypt_from_bytes(trussed, &ser_encrypted, key);
+                    debug_now!("Decryption result with {:?}: {:?}", kt, res.is_ok());
+                    if res.is_ok() {
+                        return res;
+                    }
+                }
             }
         }
         Err(encrypted_container::Error::FailedDecryption)
@@ -223,11 +224,12 @@ impl State {
             .ok()
             .and_then(|response| cbor_deserialize(&response.data).ok())
             .unwrap_or_else(|| {
+                #[allow(clippy::unwrap_used)]
                 let salt: [u8; 8] = syscall!(trussed.random_bytes(8))
                     .bytes
                     .as_ref()
                     .try_into()
-                    .unwrap();
+                    .unwrap(); // OK, because random_bytes returns exact requested bytes count;
                 Persistent { salt }
             })
     }
