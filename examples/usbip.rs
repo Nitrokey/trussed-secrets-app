@@ -140,7 +140,7 @@ pub type VirtClient = ClientImplementation<
 #[clap(about, version, author)]
 struct Args {
     /// USB Name string
-    #[clap(short, long, default_value = "OATH app")]
+    #[clap(short, long, default_value = "Secrets App")]
     name: String,
 
     /// USB Manufacturer string
@@ -280,7 +280,7 @@ impl trussed::platform::UserInterface for UserInterface {
 struct Apps {
     fido: fido_authenticator::Authenticator<fido_authenticator::Conforming, VirtClient>,
     admin: admin_app::App<VirtClient, Reboot>,
-    otp: oath_authenticator::Authenticator<VirtClient>,
+    secrets: secrets_app::Authenticator<VirtClient>,
 }
 
 impl trussed_usbip::Apps<VirtClient, dispatch::Dispatch> for Apps {
@@ -295,26 +295,26 @@ impl trussed_usbip::Apps<VirtClient, dispatch::Dispatch> for Apps {
             },
         );
         let admin = admin_app::App::new(builder.build("admin", &[BackendId::Core]), [0; 16], 0);
-        let options = oath_authenticator::Options::new(
+        let options = secrets_app::Options::new(
             Location::Internal,
             CustomStatus::ReverseHotpSuccess as u8,
             CustomStatus::ReverseHotpError as u8,
             [0x42, 0x42, 0x42, 0x42],
             0xFFFF,
         );
-        let otp = oath_authenticator::Authenticator::new(
+        let secrets = secrets_app::Authenticator::new(
             builder.build("otp", dispatch::BACKENDS),
             options,
         );
 
-        Self { fido, admin, otp }
+        Self { fido, admin, secrets }
     }
 
     fn with_ctaphid_apps<T>(
         &mut self,
         f: impl FnOnce(&mut [&mut dyn ctaphid_dispatch::app::App]) -> T,
     ) -> T {
-        f(&mut [&mut self.fido, &mut self.admin, &mut self.otp])
+        f(&mut [&mut self.fido, &mut self.admin, &mut self.secrets])
     }
 
     #[cfg(feature = "ccid")]
