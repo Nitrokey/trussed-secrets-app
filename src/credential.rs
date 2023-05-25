@@ -77,21 +77,37 @@ impl Default for CredentialFlat {
     }
 }
 
+use bitflags::bitflags;
+
+bitflags! {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    struct PropertiesByte: u8 {
+        const touch_required =  1 << 0;
+        const encrypted =  1 << 1;
+        const pws_data_exist =  1 << 2;
+    }
+}
+
+impl From<&CredentialFlat> for PropertiesByte {
+    fn from(cred: &CredentialFlat) -> Self {
+        let mut res: PropertiesByte = PropertiesByte::empty();
+        if cred.touch_required {
+            res |= PropertiesByte::touch_required;
+        }
+        if cred.encryption_key_type.unwrap() == EncryptionKeyType::PinBased {
+            res |= PropertiesByte::encrypted;
+        }
+        if cred.login.is_some() || cred.password.is_some() {
+            res |= PropertiesByte::pws_data_exist;
+        }
+        res
+    }
+}
+
 impl CredentialFlat {
     pub fn get_properties_byte(&self) -> u8 {
-        let mut res: u8 = 0;
-        res |= if self.touch_required { 1 << 0 } else { 0 };
-        res |= if self.encryption_key_type.unwrap() == EncryptionKeyType::PinBased {
-            1 << 1
-        } else {
-            0
-        };
-        res |= if self.login.is_some() || self.password.is_some() {
-            1 << 2
-        } else {
-            0
-        };
-        res
+        let res: PropertiesByte = self.into();
+        res.bits()
     }
 
     fn get_bytes_or_none_if_empty(x: &[u8]) -> Result<Option<ShortData>, ()> {
