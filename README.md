@@ -110,6 +110,14 @@ Tasks and features still discussed to be done:
   value;
 - support SHA512 if that would be ever needed.
 
+### Development
+
+Use `dangerous_disable_encryption` Rust flag to disable data encryption for the debug purposes. E.g.:
+
+```text
+$ env RUSTFLAGS="--cfg dangerous_disable_encryption" cargo test
+```
+
 ### License
 
 <sup>`oath-authenticator` is licensed under either of [Apache License, Version 2.0](LICENSE-APACHE)
