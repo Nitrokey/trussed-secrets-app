@@ -417,14 +417,16 @@ where
         self._extension_pin_factory_reset()?;
         self.state.runtime.reset();
 
-        // Remove potential missed remains for the extra care
-        for loc in [Location::Volatile, self.options.location] {
+        // Remove potential missed remains for the extra care.
+        // Ignore errors, if any. Go over all locations.
+        // TODO Iterate directly over all the locations (e.g. using some macro crate), instead of specifying them here by hand
+        for loc in [Location::External, Location::Internal, Location::Volatile] {
             info_now!(":: reset - delete all keys and files in {:?}", loc);
-            try_syscall!(self.trussed.delete_all(loc)).map_err(|_| Status::NotEnoughMemory)?;
-            try_syscall!(self
+            let _r1 = try_syscall!(self.trussed.delete_all(loc));
+            let _r2 = try_syscall!(self
                 .trussed
-                .remove_dir_all(loc, trussed::types::PathBuf::new()))
-            .map_err(|_| Status::NotEnoughMemory)?;
+                .remove_dir_all(loc, trussed::types::PathBuf::new()));
+            debug_now!(":: reset - results {:?} {:?}", _r1, _r2);
         }
 
         debug_now!(":: reset over");
