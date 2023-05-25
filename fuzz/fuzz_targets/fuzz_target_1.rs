@@ -1,4 +1,9 @@
 #![no_main]
+
+// Copyright (C) 2023 Nitrokey GmbH
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 // #![feature(iter_advance_by)]
 
 use libfuzzer_sys::fuzz_target;

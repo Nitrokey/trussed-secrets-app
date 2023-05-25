@@ -1,5 +1,9 @@
 #![no_std]
 
+// Copyright (C) 2023 Nitrokey GmbH
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 #[macro_use]
 extern crate delog;
 generate_macros!();

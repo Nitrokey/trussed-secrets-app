@@ -1,6 +1,12 @@
 #![cfg_attr(not(test), no_std)]
 #![warn(
-    missing_copy_implementations,
+
+// Copyright (C) 2021-2022 The Trussed Developers
+// Copyright (C) 2023 Nitrokey GmbH
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+missing_copy_implementations,
     missing_debug_implementations,
     missing_docs,
     non_ascii_idents,

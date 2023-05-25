@@ -1,3 +1,8 @@
+// Copyright (C) 2021-2022 The Trussed Developers
+// Copyright (C) 2023 Nitrokey GmbH
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 use block_padding::{Pkcs7, RawPadding};
 use core::convert::{TryFrom, TryInto};
 use flexiber::{SimpleTag, TagLike};

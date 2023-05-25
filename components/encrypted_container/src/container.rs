@@ -1,3 +1,7 @@
+// Copyright (C) 2023 Nitrokey GmbH
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 use cbor_smol::{cbor_deserialize, cbor_serialize};
 use heapless_bytes::Bytes;
 use serde::de::DeserializeOwned;
