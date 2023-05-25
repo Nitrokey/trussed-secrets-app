@@ -287,6 +287,8 @@ struct Apps {
     secrets: secrets_app::Authenticator<VirtClient>,
 }
 
+const MAX_RESIDENT_CREDENTIAL_COUNT: u32 = 50;
+
 impl trussed_usbip::Apps<VirtClient, dispatch::Dispatch> for Apps {
     type Data = ();
     fn new<B: ClientBuilder<VirtClient, dispatch::Dispatch>>(builder: &B, _data: ()) -> Self {
@@ -296,6 +298,7 @@ impl trussed_usbip::Apps<VirtClient, dispatch::Dispatch> for Apps {
             fido_authenticator::Config {
                 max_msg_size: MESSAGE_SIZE,
                 skip_up_timeout: None,
+                max_resident_credential_count: Some(MAX_RESIDENT_CREDENTIAL_COUNT),
             },
         );
         let admin = admin_app::App::new(builder.build("admin", &[BackendId::Core]), [0; 16], 0);

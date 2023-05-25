@@ -53,5 +53,6 @@ doc = false
 
 
 [patch.crates-io]
-trussed = { git = "https://github.com/trussed-dev/trussed", branch = "main" }
-flexiber = { git = "https://github.com/Nitrokey/flexiber", rev = "0.1.1.nitrokey" }
+flexiber = { git = "https://github.com/Nitrokey/flexiber", tag = "0.1.1.nitrokey" }
+trussed = { git = "https://github.com/Nitrokey/trussed", tag = "v0.1.0-nitrokey.11" }
+trussed-auth = { git = "https://github.com/trussed-dev/trussed-auth/", tag = "v0.2.2" }
