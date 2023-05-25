@@ -413,13 +413,14 @@ where
         self.state.runtime.reset();
 
         // Remove potential missed remains for the extra care
-        for loc in [Location::Volatile, self.options.location] {
+        // Ignore errors, if any
+        for loc in [self.options.location, Location::Volatile] {
             info_now!(":: reset - delete all keys and files in {:?}", loc);
-            try_syscall!(self.trussed.delete_all(loc)).map_err(|_| Status::NotEnoughMemory)?;
-            try_syscall!(self
+            let _r1 = try_syscall!(self.trussed.delete_all(loc));
+            let _r2 = try_syscall!(self
                 .trussed
-                .remove_dir_all(loc, trussed::types::PathBuf::new()))
-            .map_err(|_| Status::NotEnoughMemory)?;
+                .remove_dir_all(loc, trussed::types::PathBuf::new()));
+            debug_now!(":: reset - results {:?} {:?}", _r1, _r2);
         }
 
         debug_now!(":: reset over");
