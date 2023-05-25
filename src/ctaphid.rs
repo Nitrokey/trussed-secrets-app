@@ -1,3 +1,7 @@
+// Copyright (C) 2023 Nitrokey GmbH
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 use crate::{Authenticator, CTAPHID_MESSAGE_SIZE_LIMIT};
 use ctaphid_dispatch::app::{self, Command as HidCommand, Message};
 use ctaphid_dispatch::command::VendorCommand;

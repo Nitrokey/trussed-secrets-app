@@ -1,3 +1,7 @@
+// Copyright (C) 2023 Nitrokey GmbH
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 /// Taken from: https://github.com/Nitrokey/nitrokey-3-firmware/tree/main/runners/usbip
 use std::path::{Path, PathBuf};
 

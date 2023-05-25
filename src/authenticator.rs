@@ -1,3 +1,7 @@
+// Copyright (C) 2023 Nitrokey GmbH
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 use core::convert::TryInto;
 
 #[cfg(feature = "brute-force-delay")]

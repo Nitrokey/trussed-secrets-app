@@ -1,3 +1,7 @@
+// Copyright (C) 2023 Nitrokey GmbH
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum Error {
     DeserializationToContainerError,
