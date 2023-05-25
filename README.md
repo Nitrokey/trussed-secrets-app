@@ -20,10 +20,14 @@ reverse-engineered specification of Yubico's [OATH application][yubico-oath].
 
 Secrets App supports the following features:
 
-- HOTP implementation - [RFC4226],
-- TOTP implementation - [RFC6238],
-- Reverse HOTP implementation - [the original client][hotp-verif].
-- Yubikey's HMAC-SHA1 challenge for KeepassXC - [KeepassXC documentation][keepass-docs], [setup tutorial][hmac-tutorial].
+- HOTP implementation - [RFC4226];
+- TOTP implementation - [RFC6238];
+- Reverse HOTP implementation - [the original client][hotp-verif];
+- Yubikey's HMAC-SHA1 challenge for KeepassXC - [KeepassXC documentation][keepass-docs], [setup tutorial][hmac-tutorial];
+- Password Safe;
+- A PIN with attempts counter;
+- PIN-based encryption per credential;
+- Touch-button protected use per credential.
 
 The pynitrokey library can be used to communicate with this application over CTAPHID, and nitropy provides the CLI using
 it.
