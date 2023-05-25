@@ -412,9 +412,10 @@ where
         self._extension_pin_factory_reset()?;
         self.state.runtime.reset();
 
-        // Remove potential missed remains for the extra care
-        // Ignore errors, if any
-        for loc in [self.options.location, Location::Volatile] {
+        // Remove potential missed remains for the extra care.
+        // Ignore errors, if any. Go over all locations.
+        // TODO Iterate directly over all the locations (e.g. using some macro crate), instead of specifying them here by hand
+        for loc in [Location::External, Location::Internal, Location::Volatile] {
             info_now!(":: reset - delete all keys and files in {:?}", loc);
             let _r1 = try_syscall!(self.trussed.delete_all(loc));
             let _r2 = try_syscall!(self
