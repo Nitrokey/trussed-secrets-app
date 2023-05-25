@@ -300,14 +300,16 @@ impl trussed_usbip::Apps<VirtClient, dispatch::Dispatch> for Apps {
             CustomStatus::ReverseHotpSuccess as u8,
             CustomStatus::ReverseHotpError as u8,
             [0x42, 0x42, 0x42, 0x42],
-            0xFFFF,
+            u16::MAX,
         );
-        let secrets = secrets_app::Authenticator::new(
-            builder.build("otp", dispatch::BACKENDS),
-            options,
-        );
+        let secrets =
+            secrets_app::Authenticator::new(builder.build("secrets", dispatch::BACKENDS), options);
 
-        Self { fido, admin, secrets }
+        Self {
+            fido,
+            admin,
+            secrets,
+        }
     }
 
     fn with_ctaphid_apps<T>(
