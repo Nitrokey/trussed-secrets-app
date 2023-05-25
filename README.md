@@ -7,9 +7,12 @@ SPDX-License-Identifier: CC0-1.0
 
 A Trussed app to manage OTP and Password Safe features of Nitrokey 3.
 
-Based on an implementation of reverse-engineered specification of Yubico's [OATH application][yubico-oath].
+Based on [oath-authenticator][], an implementation of
+reverse-engineered specification of Yubico's [OATH application][yubico-oath].
 
 [trussed]: https://trussed.dev
+
+[oath-authenticator]: https://github.com/trussed-dev/oath-authenticator
 
 [yubico-oath]: https://developers.yubico.com/OATH/YKOATH_Protocol.html
 
