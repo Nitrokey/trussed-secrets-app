@@ -696,7 +696,7 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
             let mut next_decoded: Option<TaggedSlice> = decoder.decode().ok();
             while let Some(next) = next_decoded {
                 let tag = next.tag().embedding().number as u8;
-                let tag = Tag::try_from(tag).unwrap();
+                let tag = Tag::try_from(tag).map_err(|_| FAILED_PARSING_ERROR)?;
                 let tag_data = next.as_bytes();
 
                 // Following should be caught before this loop
