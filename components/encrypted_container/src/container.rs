@@ -150,7 +150,7 @@ impl EncryptedDataContainer {
     where
         T: trussed::Client + trussed::client::Chacha8Poly1305,
     {
-        #[cfg(feature = "no-encrypted-credentials")]
+        #[cfg(dangerous_disable_encryption)]
         {
             // Skipping error handling, as this feature is only for the debugging purposes
             return Ok(EncryptedDataContainer {
@@ -210,7 +210,7 @@ impl EncryptedDataContainer {
             return Err(Error::EmptyContainerData);
         }
 
-        #[cfg(feature = "no-encrypted-credentials")]
+        #[cfg(dangerous_disable_encryption)]
         {
             // Skipping error handling, as this feature is only for the debugging purposes
             return Ok(Message::from_slice(&self.data).unwrap());
