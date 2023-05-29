@@ -22,6 +22,7 @@ jobs:
   fuzz:
     runs-on: ubuntu-latest
     steps:
+    - uses: actions/checkout@v3
     - name: Setup fuzz
       run: make -C fuzz setup-ubuntu
     - name: Setup fuzz 2
