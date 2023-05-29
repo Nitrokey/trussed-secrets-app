@@ -11,13 +11,20 @@ env:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v3
-    - name: Setup
-      run: sudo apt install llvm libclang-dev
+    - name: Setup Ubuntu
+      run: make setup-ubuntu
     - name: Run tests
-      run: cargo test --verbose
+      run: make ci
 
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Setup fuzz
+      run: make -C fuzz setup-ubuntu
+    - name: Setup fuzz 2
+      run: make -C fuzz setup
+    - name: Run tests
+      run: make -C fuzz ci
