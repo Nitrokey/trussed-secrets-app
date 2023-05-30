@@ -1,5 +1,35 @@
 # Changelog
 
+## [Unreleased](https://github.com/nitrokey/trussed-secrets-app/tree/HEAD)
+
+[Full Changelog](https://github.com/nitrokey/trussed-secrets-app/compare/0.11.0-rc2...HEAD)
+
+**Closed issues:**
+
+- Use released version for trussed-auth [\#58](https://github.com/Nitrokey/trussed-secrets-app/issues/58)
+
+## [0.11.0-rc2](https://github.com/nitrokey/trussed-secrets-app/tree/0.11.0-rc2) (2023-05-30)
+
+[Full Changelog](https://github.com/nitrokey/trussed-secrets-app/compare/0.11.0-rc1...0.11.0-rc2)
+
+**Implemented enhancements:**
+
+- Reuse compliance [\#77](https://github.com/Nitrokey/trussed-secrets-app/issues/77)
+
+**Closed issues:**
+
+- Migrate bit manipulation to bitflags crate [\#78](https://github.com/Nitrokey/trussed-secrets-app/issues/78)
+- Resetting strategy [\#43](https://github.com/Nitrokey/trussed-secrets-app/issues/43)
+- Use cfg switch for no-encryption feature [\#23](https://github.com/Nitrokey/trussed-secrets-app/issues/23)
+
+**Merged pull requests:**
+
+- Replace feature with a config switch for the debug mode [\#84](https://github.com/Nitrokey/trussed-secrets-app/pull/84) ([szszszsz](https://github.com/szszszsz))
+- Migrate list properties byte to bitflags [\#82](https://github.com/Nitrokey/trussed-secrets-app/pull/82) ([szszszsz](https://github.com/szszszsz))
+- Add copyright and spdx identifiers [\#81](https://github.com/Nitrokey/trussed-secrets-app/pull/81) ([szszszsz](https://github.com/szszszsz))
+- Match trussed\* dependencies to the used in NK3 v1.4.0 [\#80](https://github.com/Nitrokey/trussed-secrets-app/pull/80) ([szszszsz](https://github.com/szszszsz))
+- Ignore errors on factory reset, and start with the persistent storage [\#79](https://github.com/Nitrokey/trussed-secrets-app/pull/79) ([szszszsz](https://github.com/szszszsz))
+
 ## [0.11.0-rc1](https://github.com/nitrokey/trussed-secrets-app/tree/0.11.0-rc1) (2023-05-25)
 
 [Full Changelog](https://github.com/nitrokey/trussed-secrets-app/compare/0.10.0...0.11.0-rc1)
