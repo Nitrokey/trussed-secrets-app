@@ -1,12 +1,28 @@
 # Changelog
 
-## [Unreleased](https://github.com/nitrokey/trussed-secrets-app/tree/HEAD)
+## [0.11.0](https://github.com/nitrokey/trussed-secrets-app/tree/0.11.0) (2023-05-30)
 
-[Full Changelog](https://github.com/nitrokey/trussed-secrets-app/compare/0.11.0-rc2...HEAD)
+[Full Changelog](https://github.com/nitrokey/trussed-secrets-app/compare/0.11.0-rc2...0.11.0)
+
+**Implemented enhancements:**
+
+- Add challenge-response support for KeepassXC [\#61](https://github.com/Nitrokey/trussed-secrets-app/issues/61)
+- Add Password Safe [\#60](https://github.com/Nitrokey/trussed-secrets-app/issues/60)
+- Extend compiler and clippy lints [\#39](https://github.com/Nitrokey/trussed-secrets-app/issues/39)
+- Extend Credential structure with Password Safe field [\#63](https://github.com/Nitrokey/trussed-secrets-app/pull/63) ([szszszsz](https://github.com/szszszsz))
 
 **Closed issues:**
 
 - Use released version for trussed-auth [\#58](https://github.com/Nitrokey/trussed-secrets-app/issues/58)
+- Group attributes in Command::Credential per kind [\#66](https://github.com/Nitrokey/trussed-secrets-app/issues/66)
+- Add config option for the maximum number of credentials [\#62](https://github.com/Nitrokey/trussed-secrets-app/issues/62)
+- Finalize renaming to `secrets-app` [\#47](https://github.com/Nitrokey/trussed-secrets-app/issues/47)
+- Resetting strategy [\#43](https://github.com/Nitrokey/trussed-secrets-app/issues/43)
+
+**Merged pull requests:**
+
+- Match trussed\* dependencies to the used in NK3 v1.4.0 [\#80](https://github.com/Nitrokey/trussed-secrets-app/pull/80) ([szszszsz](https://github.com/szszszsz))
+- Ignore errors on factory reset, and start with the persistent storage [\#79](https://github.com/Nitrokey/trussed-secrets-app/pull/79) ([szszszsz](https://github.com/szszszsz))
 
 ## [0.11.0-rc2](https://github.com/nitrokey/trussed-secrets-app/tree/0.11.0-rc2) (2023-05-30)
 

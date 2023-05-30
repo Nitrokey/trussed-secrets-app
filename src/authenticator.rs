@@ -93,7 +93,7 @@ impl Default for OathVersion {
         // TODO: set this up automatically during the build from the project version
         OathVersion {
             major: 4,
-            minor: 11,
+            minor: 12,
             patch: 0,
         }
     }
