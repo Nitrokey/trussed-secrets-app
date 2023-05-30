@@ -33,13 +33,22 @@ fuzz-cov-show:
 		> fuzz_coverage.html
 
 .PHONY: ci
-ci: check
+ci:
+	$(MAKE) fuzz FUZZ_DURATION=10 FUZZ_JOBS=1
 
 .PHONY: setup
 setup:
 	rustup component add clippy rustfmt && rustup toolchain install nightly
 	rustup component add llvm-tools-preview
-	cargo install cargo-tarpaulin cargo-fuzz --profile release
-	python3 -m pip install reuse
+	cargo install cargo-fuzz --profile release
+	#cargo install cargo-tarpaulin --profile release  # for coverage
+	# python3 -m pip install reuse
 	# Fedora 37
 	# sudo ln -s libclang.so.15 libclang.so
+
+.PHONY: setup-ubuntu
+setup-ubuntu:
+	sudo apt install llvm libclang-dev make curl clang pkg-config libssl-dev python3-pip git
+	# rust
+	# curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+	# source "$HOME/.cargo/env"
