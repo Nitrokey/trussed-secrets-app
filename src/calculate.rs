@@ -19,7 +19,7 @@ where
     T: client::Client,
     F: FnOnce(&mut T, KeyId) -> O,
 {
-    let injected = try_syscall!(trussed.unsafe_inject_shared_key(key, Location::Volatile,))
+    let injected = try_syscall!(trussed.unsafe_inject_shared_key(key, Location::Volatile, trussed::key::Kind::Shared(key.len())))
         .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?
         .key;
     let res = f(trussed, injected);
