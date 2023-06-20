@@ -75,12 +75,11 @@ required-features = ["ctaphid", "devel"]
 
 [patch.crates-io]
 flexiber = { git = "https://github.com/Nitrokey/flexiber", tag = "0.1.1.nitrokey" }
-trussed = { git = "https://github.com/sosthene-nitrokey/trussed.git", rev = "6f095e14b27bd58ab8fa56cf6c616266d92fbfb4" }
 littlefs2 = { git =  "https://github.com/Nitrokey/littlefs2", tag = "v0.3.2-nitrokey-2" }
 trussed-auth = { git = "https://github.com/trussed-dev/trussed-auth.git" , rev = "0ac8f49608d1b5dab6ee72abf5dca88fb4c9ecff" }
-ctaphid-dispatch = { git = "https://github.com/sosthene-nitrokey/ctaphid-dispatch.git", rev = "cb3c35f622b578d8d364e85c5e29f207201a5060" }
 usbd-ctaphid = { git = "https://github.com/trussed-dev/usbd-ctaphid.git", rev = "6509cc258af45c2030290a32f2a46233967edef5"}
-trussed-usbip = { git = "https://github.com/trussed-dev/pc-usbip-runner.git", rev = "293ecd06166b8be9aa45d94db5de801198466c5e" }
-fido-authenticator = { git = "https://github.com/Nitrokey/fido-authenticator.git", rev = "76d3d88b374658d96bd3fe8bb02775f954db11c3" }
-admin-app = { git = "https://github.com/Nitrokey/admin-app.git", rev = "b885407aa59f43cbac949fe119e1af6323a7289b" }
-
+trussed-usbip = { git = "https://github.com/trussed-dev/pc-usbip-runner.git", rev = "e78883847fb01ac93179074ff29e13a0d470775b" }
+fido-authenticator = { git = "https://github.com/Nitrokey/fido-authenticator.git", rev = "c471c81e25506d40b03f22f1b56fbc3441220ab8" }
+admin-app = { git = "https://github.com/Nitrokey/admin-app.git", rev = "15aec92ff3f30f2ad1ff157ac5077c7211a04c77" }
+ctaphid-dispatch = { git = "https://github.com/trussed-dev/ctaphid-dispatch.git", rev = "57cb3317878a8593847595319aa03ef17c29ec5b" }
+trussed = { git = "https://github.com/trussed-dev/trussed.git", rev = "f3c95ab16fe6f9357a5d792e709e93d06c304b34" }
