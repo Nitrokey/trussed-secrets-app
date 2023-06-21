@@ -75,7 +75,7 @@ impl Options {
 pub struct Authenticator<T> {
     options: Options,
     state: State,
-    trussed: T,
+    pub(crate) trussed: T,
 }
 
 use crate::Result;

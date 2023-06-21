@@ -32,12 +32,12 @@ log = { version = "0.4.14", default-features = false }
 pretty_env_logger = "0.4.0"
 
 # below are for running the usbip example
-trussed-usbip = { git = "https://github.com/trussed-dev/pc-usbip-runner", default-features = false, features = ["ctaphid"], rev = "f3a680ca4c9a1411838ae0774f1713f79d4c2979" }
+trussed-usbip = { version = "0.0.1", features = ["ctaphid"], default-features = false }
 usbd-ctaphid = "0.1"
 clap = { version = "3.0.0", features = ["cargo", "derive"] }
 clap-num = "1.0.0"
 delog = { version = "0.1.6", features = ["std-log"] }
-fido-authenticator = { git = "https://github.com/Nitrokey/fido-authenticator", tag = "v0.1.1-nitrokey.4",  features = ["dispatch", "log-all"] }
+fido-authenticator = "0.1.1"
 
 admin-app = { version = "0.1", features = ["log-all"] }
 
@@ -75,5 +75,11 @@ required-features = ["ctaphid", "devel"]
 
 [patch.crates-io]
 flexiber = { git = "https://github.com/Nitrokey/flexiber", tag = "0.1.1.nitrokey" }
-trussed = { git = "https://github.com/Nitrokey/trussed", tag = "v0.1.0-nitrokey.11" }
-trussed-auth = { git = "https://github.com/trussed-dev/trussed-auth/", tag = "v0.2.2" }
+littlefs2 = { git =  "https://github.com/Nitrokey/littlefs2", tag = "v0.3.2-nitrokey-2" }
+trussed-auth = { git = "https://github.com/trussed-dev/trussed-auth.git" , rev = "0ac8f49608d1b5dab6ee72abf5dca88fb4c9ecff" }
+usbd-ctaphid = { git = "https://github.com/trussed-dev/usbd-ctaphid.git", rev = "6509cc258af45c2030290a32f2a46233967edef5"}
+trussed-usbip = { git = "https://github.com/trussed-dev/pc-usbip-runner.git", rev = "e78883847fb01ac93179074ff29e13a0d470775b" }
+fido-authenticator = { git = "https://github.com/Nitrokey/fido-authenticator.git", rev = "c471c81e25506d40b03f22f1b56fbc3441220ab8" }
+admin-app = { git = "https://github.com/Nitrokey/admin-app.git", rev = "15aec92ff3f30f2ad1ff157ac5077c7211a04c77" }
+ctaphid-dispatch = { git = "https://github.com/trussed-dev/ctaphid-dispatch.git", rev = "57cb3317878a8593847595319aa03ef17c29ec5b" }
+trussed = { git = "https://github.com/trussed-dev/trussed.git", rev = "f3c95ab16fe6f9357a5d792e709e93d06c304b34" }
