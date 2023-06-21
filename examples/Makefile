@@ -88,6 +88,7 @@ mount: $(LFS)
 	$(LFS) --block_count=128 `cat loop.dev` $(mount)
 	printf "loop_device=`cat loop.dev`\nmount=$(mount)" > $(state)
 	tree -C -h $(mount)
+	find $(mount) -type f
 
 umount:
 	-umount $(mount)
