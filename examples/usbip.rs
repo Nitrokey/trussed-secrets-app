@@ -336,7 +336,7 @@ struct Apps {
 
 const MAX_RESIDENT_CREDENTIAL_COUNT: u32 = 50;
 
-impl<'interrupt> trussed_usbip::Apps<'interrupt, VirtClient, dispatch::Dispatch> for Apps {
+impl trussed_usbip::Apps<'static, VirtClient, dispatch::Dispatch> for Apps {
     type Data = ();
     fn new<B: ClientBuilder<VirtClient, dispatch::Dispatch>>(builder: &B, _data: ()) -> Self {
         let fido = fido_authenticator::Authenticator::new(
@@ -349,7 +349,13 @@ impl<'interrupt> trussed_usbip::Apps<'interrupt, VirtClient, dispatch::Dispatch>
             },
         );
         let data = AdminData::new(Variant::Usbip);
-        let admin = admin_app::App::new(builder.build("admin", &[BackendId::Core]), [0; 16], 0, "", data.encode());
+        let admin = admin_app::App::new(
+            builder.build("admin", &[BackendId::Core]),
+            [0; 16],
+            0,
+            "",
+            data.encode(),
+        );
         let options = secrets_app::Options::new(
             Location::Internal,
             CustomStatus::ReverseHotpSuccess as u8,
@@ -369,7 +375,7 @@ impl<'interrupt> trussed_usbip::Apps<'interrupt, VirtClient, dispatch::Dispatch>
 
     fn with_ctaphid_apps<T>(
         &mut self,
-        f: impl FnOnce(&mut [&mut dyn ctaphid_dispatch::app::App<'interrupt>]) -> T,
+        f: impl FnOnce(&mut [&mut dyn ctaphid_dispatch::app::App<'static>]) -> T,
     ) -> T {
         f(&mut [&mut self.fido, &mut self.admin, &mut self.secrets])
     }
