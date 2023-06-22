@@ -37,7 +37,7 @@ usbd-ctaphid = "0.1"
 clap = { version = "3.0.0", features = ["cargo", "derive"] }
 clap-num = "1.0.0"
 delog = { version = "0.1.6", features = ["std-log"] }
-fido-authenticator = "0.1.1"
+fido-authenticator = { version = "0.1.1", features = ["dispatch", "log-all"]}
 
 admin-app = { version = "0.1", features = ["log-all"] }
 
