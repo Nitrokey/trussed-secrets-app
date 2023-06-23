@@ -539,7 +539,18 @@ where
 
             let maybe_credential: Option<CredentialFlat> = match file {
                 None => None,
-                Some(c) => self.state.decrypt_content(&mut self.trussed, c).ok(),
+                Some(c) => {
+                    let (res, k) = self
+                        .state
+                        .decrypt_content::<_, CredentialFlat>(&mut self.trussed, c);
+                    if let Ok(mut cred) = res {
+                        cred.encryption_key_type = k;
+                        Some(cred)
+                    } else {
+                        warn_now!("Failed decryption for file {:?}", file_index);
+                        None
+                    }
+                }
             };
             maybe_credential
         };
@@ -552,6 +563,10 @@ where
                 let res =
                     Self::try_to_serialize_credential_for_list(&credential, reply, request_data);
                 if res.is_err() {
+                    warn_now!(
+                        "Aborted serialization for credential {:?}",
+                        credential.label
+                    );
                     // Revert reply vector to the last good size, removing debris from the failed
                     // serialization
                     reply.truncate(current_reply_bytes_count);
@@ -571,7 +586,18 @@ where
                 // no more files, break the loop and return
                 None => break,
                 // we do not have the right key, continue
-                Some(c) => self.state.decrypt_content(&mut self.trussed, c).ok(),
+                Some(c) => {
+                    let (res, k) = self
+                        .state
+                        .decrypt_content::<_, CredentialFlat>(&mut self.trussed, c);
+                    if let Ok(mut cred) = res {
+                        cred.encryption_key_type = k;
+                        Some(cred)
+                    } else {
+                        warn_now!("Failed decryption for file {:?}", file_index);
+                        None
+                    }
+                }
             };
         }
 
