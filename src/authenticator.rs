@@ -495,6 +495,21 @@ where
         Ok(())
     }
 
+    fn load_credential_from_message(
+        &mut self,
+        encrypted_data: Option<Message>,
+    ) -> Option<CredentialFlat> {
+        let (res, k) = self
+            .state
+            .decrypt_content::<_, CredentialFlat>(&mut self.trussed, encrypted_data?);
+        if let Ok(mut cred) = res {
+            cred.encryption_key_type = k;
+            Some(cred)
+        } else {
+            None
+        }
+    }
+
     /// The YK5 can store a Grande Totale of 32 OATH credentials.
     fn list_credentials<const R: usize>(
         &mut self,
@@ -537,21 +552,11 @@ where
                 }
             };
 
-            let maybe_credential: Option<CredentialFlat> = match file {
-                None => None,
-                Some(c) => {
-                    let (res, k) = self
-                        .state
-                        .decrypt_content::<_, CredentialFlat>(&mut self.trussed, c);
-                    if let Ok(mut cred) = res {
-                        cred.encryption_key_type = k;
-                        Some(cred)
-                    } else {
-                        warn_now!("Failed decryption for file {:?}", file_index);
-                        None
-                    }
-                }
-            };
+            let maybe_credential: Option<CredentialFlat> =
+                self.load_credential_from_message(file).or_else(|| {
+                    warn_now!("Failed decryption for file {:?}", file_index);
+                    None
+                });
             maybe_credential
         };
 
@@ -582,23 +587,16 @@ where
             ));
 
             // check if there's more
-            maybe_credential = match syscall!(self.trussed.read_dir_files_next()).data {
+            let data = syscall!(self.trussed.read_dir_files_next()).data;
+            if data.is_none() {
                 // no more files, break the loop and return
-                None => break,
-                // we do not have the right key, continue
-                Some(c) => {
-                    let (res, k) = self
-                        .state
-                        .decrypt_content::<_, CredentialFlat>(&mut self.trussed, c);
-                    if let Ok(mut cred) = res {
-                        cred.encryption_key_type = k;
-                        Some(cred)
-                    } else {
-                        warn_now!("Failed decryption for file {:?}", file_index);
-                        None
-                    }
-                }
-            };
+                break;
+            }
+            maybe_credential = self.load_credential_from_message(data).or_else(|| {
+                // we might not have the right key, continue
+                warn_now!("Failed decryption for file {:?}", file_index);
+                None
+            });
         }
 
         // ran to completion
