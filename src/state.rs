@@ -148,7 +148,7 @@ impl State {
         &mut self,
         trussed: &mut T,
         ser_encrypted: Message,
-    ) -> encrypted_container::Result<O>
+    ) -> (encrypted_container::Result<O>, Option<EncryptionKeyType>)
     where
         T: trussed::Client + trussed::client::Chacha8Poly1305,
         O: DeserializeOwned,
@@ -171,12 +171,12 @@ impl State {
                         EncryptedDataContainer::decrypt_from_bytes(trussed, &ser_encrypted, key);
                     debug_now!("Decryption result with {:?}: {:?}", kt, res.is_ok());
                     if res.is_ok() {
-                        return res;
+                        return (res, Some(kt.clone()));
                     }
                 }
             }
         }
-        Err(encrypted_container::Error::FailedDecryption)
+        (Err(encrypted_container::Error::FailedDecryption), None)
     }
 
     pub fn try_read_file<T, O>(
@@ -192,8 +192,8 @@ impl State {
 
         debug_now!("ser_encrypted {:?}", ser_encrypted);
 
-        self.decrypt_content(trussed, ser_encrypted)
-            .map_err(|e| e.into())
+        let (res, _) = self.decrypt_content(trussed, ser_encrypted);
+        res.map_err(|e| e.into())
     }
 
     pub fn with_persistent<T, X>(

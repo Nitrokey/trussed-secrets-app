@@ -94,7 +94,14 @@ impl From<&CredentialFlat> for PropertiesByte {
         if cred.touch_required {
             res |= PropertiesByte::touch_required;
         }
-        if cred.encryption_key_type.unwrap() == EncryptionKeyType::PinBased {
+        if cred.encryption_key_type.is_none() {
+            warn_now!("encryption_key_type is not set");
+        }
+        if cred
+            .encryption_key_type
+            .unwrap_or(EncryptionKeyType::PinBased)
+            == EncryptionKeyType::PinBased
+        {
             res |= PropertiesByte::encrypted;
         }
         if cred.login.is_some() || cred.password.is_some() {
