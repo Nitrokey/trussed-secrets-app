@@ -434,6 +434,7 @@ where
     }
 
     fn delete(&mut self, delete: command::Delete<'_>) -> Result {
+        self.user_present()?;
         debug_now!("{:?}", delete);
         // It seems tooling first lists all credentials, so the case of
         // delete being called on a non-existing label hardly occurs.
