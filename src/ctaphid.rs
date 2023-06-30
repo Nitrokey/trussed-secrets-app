@@ -32,7 +32,7 @@ where
         const MAX_COMMAND_LENGTH: usize = CTAPHID_MESSAGE_SIZE_LIMIT;
         match command {
             HidCommand::Vendor(OTP_CCID) => {
-                let arr: [u8; 2] = Status::Success.into();
+                let arr: [u8; 2] = Status::SUCCESS.into();
                 response.extend(arr);
                 let ctap_to_iso7816_command =
                     iso7816::Command::<MAX_COMMAND_LENGTH>::try_from(input_data).map_err(|_e| {
@@ -44,13 +44,10 @@ where
 
                 match res {
                     Ok(_) => return Ok(()),
-                    Err(Status::MoreAvailable(b)) => {
-                        response[0] = 0x61;
-                        response[1] = b;
-                        return Ok(());
-                    }
                     Err(e) => {
-                        info_now!("OTP command execution error: {:?}", e);
+                        if !e.is_more_available() {
+                            info_now!("OTP command execution error: {:?}", e);
+                        }
                         let arr: [u8; 2] = e.into();
                         response.clear();
                         response.extend(arr);

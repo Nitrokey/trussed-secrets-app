@@ -20,7 +20,7 @@ where
     F: FnOnce(&mut T, KeyId) -> O,
 {
     let injected = try_syscall!(trussed.unsafe_inject_shared_key(key, Location::Volatile,))
-        .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?
+        .map_err(|_| Status::EXECUTION_ERROR)?
         .key;
     let res = f(trussed, injected);
     try_syscall!(trussed.delete(injected)).ok();
@@ -47,17 +47,17 @@ where
         let truncated = match algorithm {
             Sha1 => {
                 let digest = try_syscall!(trussed.sign_hmacsha1(key, challenge))
-                    .map_err(|_| Status::UnspecifiedPersistentExecutionError)?
+                    .map_err(|_| Status::DATA_CHANGED_ERROR)?
                     .signature;
                 dynamic_truncation(&digest)
             }
             Sha256 => {
                 let digest = try_syscall!(trussed.sign_hmacsha256(key, challenge))
-                    .map_err(|_| Status::UnspecifiedPersistentExecutionError)?
+                    .map_err(|_| Status::DATA_CHANGED_ERROR)?
                     .signature;
                 dynamic_truncation(&digest)
             }
-            Sha512 => return Err(Status::FunctionNotSupported),
+            Sha512 => return Err(Status::FUNCTION_NOT_SUPPORTED),
         };
 
         Ok(truncated.to_be_bytes())
@@ -78,11 +78,11 @@ where
         match algorithm {
             Sha1 => {
                 let digest = try_syscall!(trussed.sign_hmacsha1(key, challenge))
-                    .map_err(|_| Status::UnspecifiedPersistentExecutionError)?
+                    .map_err(|_| Status::DATA_CHANGED_ERROR)?
                     .signature;
                 Ok(digest)
             }
-            _ => Err(Status::InstructionNotSupportedOrInvalid),
+            _ => Err(Status::INSTRUCTION_NOT_SUPPORTED_OR_INVALID),
         }
     })?
 }

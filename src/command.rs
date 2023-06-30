@@ -15,7 +15,7 @@ use YkCommand::GetSerial;
 use crate::oath::{Tag, YkCommand};
 use crate::{ensure, oath};
 
-const FAILED_PARSING_ERROR: Status = Status::IncorrectDataParameter;
+const FAILED_PARSING_ERROR: Status = Status::INCORRECT_PARAMETERS;
 
 /// Decoded command request, along with data
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -80,11 +80,11 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for YkGetHmac<'l> {
 
 impl<'l> YkGetHmac<'l> {
     pub fn get_credential_label(&self) -> Result<&[u8], Status> {
-        Ok(match self.slot_cmd.ok_or(Status::IncorrectDataParameter)? {
+        Ok(match self.slot_cmd.ok_or(Status::INCORRECT_PARAMETERS)? {
             YkCommand::HmacSlot1 => "HmacSlot1",
             YkCommand::HmacSlot2 => "HmacSlot2",
             _ => {
-                return Err(Status::IncorrectDataParameter);
+                return Err(Status::INCORRECT_PARAMETERS);
             }
         }
         .as_bytes())
@@ -94,7 +94,7 @@ impl<'l> YkGetHmac<'l> {
         match slot {
             YkCommand::HmacSlot1 => {}
             YkCommand::HmacSlot2 => {}
-            _ => return Err(Status::IncorrectDataParameter),
+            _ => return Err(Status::INCORRECT_PARAMETERS),
         };
         Ok(YkGetHmac {
             challenge: self.challenge,
@@ -107,17 +107,17 @@ impl<'l> TryFrom<&'l [u8]> for YkGetHmac<'l> {
     type Error = Status;
     fn try_from(data: &'l [u8]) -> Result<Self, Self::Error> {
         // Input data should always be padded to 64 bytes
-        ensure(data.len() == 64, Status::IncorrectDataParameter)?;
+        ensure(data.len() == 64, Status::INCORRECT_PARAMETERS)?;
         // PKCS#7 padding; possibly incompatible with Yubikey's PKCS#7 version, as it expects
         // the last byte to always be the padding byte value. See KeepassXC implementation comments
         // for the details.
         // https://github.com/Nitrokey/keepassxc/blob/cf819e0a3f5664fb0e1705217dbebbdf704bdc34/src/keys/drivers/YubiKeyInterfacePCSC.cpp#L730
         // Everything works with the challenge length up to 63 bytes though, and YK implementation
         // would not handle more anyway, hence accepting this potential incompatibility.
-        let challenge = Pkcs7::raw_unpad(data).map_err(|_| Status::IncorrectDataParameter)?;
+        let challenge = Pkcs7::raw_unpad(data).map_err(|_| Status::INCORRECT_PARAMETERS)?;
         if challenge.is_empty() {
             // All sent is padding
-            return Err(Status::IncorrectDataParameter);
+            return Err(Status::INCORRECT_PARAMETERS);
         }
 
         Ok(Self {
@@ -582,7 +582,7 @@ impl TryFrom<Tag> for SimpleTag {
     type Error = Status;
 
     fn try_from(value: Tag) -> Result<Self, Self::Error> {
-        SimpleTag::try_from(value as u8).map_err(|_| Status::UnspecifiedPersistentExecutionError)
+        SimpleTag::try_from(value as u8).map_err(|_| Status::EXECUTION_ERROR)
     }
 }
 
@@ -590,8 +590,7 @@ impl TryFrom<SimpleTag> for Tag {
     type Error = Status;
 
     fn try_from(value: SimpleTag) -> Result<Self, Self::Error> {
-        Tag::try_from(value.embedding().number as u8)
-            .map_err(|_| Status::UnspecifiedPersistentExecutionError)
+        Tag::try_from(value.embedding().number as u8).map_err(|_| Status::EXECUTION_ERROR)
     }
 }
 
@@ -719,7 +718,7 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
                     }
                     _ => {
                         // Unmatched tags should return error
-                        return Err(Status::IncorrectDataParameter);
+                        return Err(Status::INCORRECT_PARAMETERS);
                     }
                 }
                 next_decoded = decoder.decode().ok();
@@ -755,7 +754,7 @@ impl<'l> Command<'l> {
         let instruction_byte: u8 = instruction.into();
         let yk_instruction: oath::YkInstruction = instruction_byte
             .try_into()
-            .map_err(|_| Status::InstructionNotSupportedOrInvalid)?;
+            .map_err(|_| Status::INSTRUCTION_NOT_SUPPORTED_OR_INVALID)?;
         match (class.into_inner(), yk_instruction, p1, p2) {
             // Get serial
             (0x00, oath::YkInstruction::ApiRequest, maybe_cmd_get_serial, 0x00)
@@ -769,7 +768,7 @@ impl<'l> Command<'l> {
             })),
             // Get status
             (0x00, oath::YkInstruction::Status, 0x00, 0x00) => Ok(Self::YkGetStatus),
-            _ => Err(Status::InstructionNotSupportedOrInvalid),
+            _ => Err(Status::INSTRUCTION_NOT_SUPPORTED_OR_INVALID),
         }
     }
 }
@@ -791,11 +790,11 @@ impl<'l, const C: usize> TryFrom<&'l iso7816::Command<C>> for Command<'l> {
         let data = command.data();
 
         if !class.secure_messaging().none() {
-            return Err(Status::SecureMessagingNotSupported);
+            return Err(Status::SECURE_MESSAGING_NOT_SUPPORTED);
         }
 
         if class.channel() != Some(0) {
-            return Err(Status::LogicalChannelNotSupported);
+            return Err(Status::LOGICAL_CHANNEL_NOT_SUPPORTED);
         }
 
         if let Ok(req) = Self::try_parse_yk_req(class, instruction, p1, p2, data) {
@@ -855,7 +854,7 @@ impl<'l, const C: usize> TryFrom<&'l iso7816::Command<C>> for Command<'l> {
                     Self::GetCredential(GetCredential::try_from(data)?)
                 }
                 (0x00, oath::Instruction::SendRemaining, 0x00, 0x00) => Self::SendRemaining,
-                _ => return Err(Status::InstructionNotSupportedOrInvalid),
+                _ => return Err(Status::INSTRUCTION_NOT_SUPPORTED_OR_INVALID),
             })
         }
     }
@@ -867,7 +866,7 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Select<'l> {
         // info_now!("comparing {} against {}", hex_str!(data.as_slice()), hex_str!(crate::YUBICO_OATH_AID));
         Ok(match data.as_slice() {
             crate::YUBICO_OATH_AID => Self { aid: data },
-            _ => return Err(Status::NotFound),
+            _ => return Err(Status::FILE_OR_APP_NOT_FOUND),
         })
     }
 }

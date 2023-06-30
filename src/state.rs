@@ -104,23 +104,23 @@ impl State {
     {
         let encryption_key = self
             .get_encryption_key_from_state(encryption_key_type)
-            .map_err(|_| Status::SecurityStatusNotSatisfied)?;
+            .map_err(|_| Status::SECURITY_STATUS_NOT_SATISFIED)?;
 
         let data = EncryptedDataContainer::from_obj(trussed, obj, None, encryption_key).map_err(
             |_err| {
                 error!("error encrypting object: {:?}", _err);
-                Status::UnspecifiedPersistentExecutionError
+                Status::DATA_CHANGED_ERROR
             },
         )?;
         let data_serialized: Message = data.try_into().map_err(|_err| {
             error!("error serializing container: {:?}", _err);
-            Status::UnspecifiedPersistentExecutionError
+            Status::DATA_CHANGED_ERROR
         })?;
         debug_now!("Container size: {}", data_serialized.len());
         try_syscall!(trussed.write_file(self.location, filename, data_serialized, None)).map_err(
             |_| {
                 debug_now!("Failed to write the file");
-                Status::NotEnoughMemory
+                Status::NOT_ENOUGH_MEMORY_IN_FILE
             },
         )?;
         Ok(())

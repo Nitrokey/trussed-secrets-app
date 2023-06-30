@@ -286,13 +286,13 @@ where
         let class = command.class();
         ensure(
             class.chain().last_or_only(),
-            Status::CommandChainingNotSupported,
+            Status::COMMAND_CHAINING_NOT_SUPPORTED,
         )?;
         ensure(
             class.secure_messaging().none(),
-            Status::SecureMessagingNotSupported,
+            Status::SECURE_MESSAGING_NOT_SUPPORTED,
         )?;
-        ensure(class.channel() == Some(0), Status::ClassNotSupported)?;
+        ensure(class.channel() == Some(0), Status::CLASS_NOT_SUPPORTED)?;
 
         // parse Iso7816Command
         let command: Command = command.try_into()?;
@@ -337,7 +337,7 @@ where
             Command::YkGetHmac(req) => self.yk_hmac(req, reply),
 
             Command::SendRemaining => self.send_remaining(reply),
-            _ => Err(Status::ConditionsOfUseNotSatisfied),
+            _ => Err(Status::CONDITION_OF_USE_NOT_SATISFIED),
         };
 
         // Call logout after processing, so the PIN-based KEK would not be kept in the memory
@@ -458,7 +458,7 @@ where
                 _deletion_result
             );
         } else {
-            return Err(Status::NotFound);
+            return Err(Status::FILE_OR_APP_NOT_FOUND);
         }
         Ok(())
     }
@@ -535,7 +535,7 @@ where
                 Self::credential_directory(),
                 None
             ))
-            .map_err(|_| Status::KeyReferenceNotFound)?
+            .map_err(|_| Status::REFERENCE_NOT_FOUND)?
             .data;
 
             // Rewind if needed, otherwise return first file's content
@@ -543,10 +543,10 @@ where
                 if file_index > 0 {
                     for _ in 0..file_index - 1 {
                         try_syscall!(self.trussed.read_dir_files_next())
-                            .map_err(|_| Status::KeyReferenceNotFound)?;
+                            .map_err(|_| Status::REFERENCE_NOT_FOUND)?;
                     }
                     try_syscall!(self.trussed.read_dir_files_next())
-                        .map_err(|_| Status::KeyReferenceNotFound)?
+                        .map_err(|_| Status::REFERENCE_NOT_FOUND)?
                         .data
                 } else {
                     first_file
@@ -576,7 +576,7 @@ where
                     // Revert reply vector to the last good size, removing debris from the failed
                     // serialization
                     reply.truncate(current_reply_bytes_count);
-                    return Err(Status::MoreAvailable(0xFF));
+                    return Err(Status::more_available(0xFF));
                 }
             };
 
@@ -616,7 +616,7 @@ where
         };
 
         match self.state.runtime.previously {
-            None => Err(Status::ConditionsOfUseNotSatisfied),
+            None => Err(Status::CONDITION_OF_USE_NOT_SATISFIED),
             Some(CommandState::ListCredentials(_, v)) => {
                 self.list_credentials(reply, Some(file_index), ListCredentials { version: v })
             }
@@ -633,7 +633,7 @@ where
 
         // Abort if the credentials count limit is reached
         if self.count_credentials()? >= self.options.max_resident_credentials_allowed {
-            return Err(Status::NotEnoughMemory);
+            return Err(Status::NOT_ENOUGH_MEMORY_IN_FILE);
         }
 
         // info_now!("recv {:?}", &register);
@@ -648,8 +648,8 @@ where
         .ok();
 
         // 1. Replace secret in credential with handle
-        let credential =
-            CredentialFlat::try_from(&register.credential).map_err(|_| Status::NotEnoughMemory)?;
+        let credential = CredentialFlat::try_from(&register.credential)
+            .map_err(|_| Status::NOT_ENOUGH_MEMORY_IN_FILE)?;
 
         // 2. Generate a filename for the credential
         let filename = self.filename_for_label(&credential.label);
@@ -718,7 +718,7 @@ where
         reply: &mut Data<R>,
     ) -> Result {
         if !self.state.runtime.client_authorized {
-            return Err(Status::ConditionsOfUseNotSatisfied);
+            return Err(Status::CONDITION_OF_USE_NOT_SATISFIED);
         }
 
         let maybe_credential_enc = syscall!(self.trussed.read_dir_files_first(
@@ -800,12 +800,12 @@ where
     ) -> Result {
         let credential = self
             .load_credential(get_credential_req.label)
-            .ok_or(Status::NotFound)?;
+            .ok_or(Status::FILE_OR_APP_NOT_FOUND)?;
 
         self.require_touch_if_needed(&credential)?;
 
         Self::try_to_serialize_credential_for_get_credential(credential, reply)
-            .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?;
+            .map_err(|_| Status::EXECUTION_ERROR)?;
         Ok(())
     }
 
@@ -829,7 +829,7 @@ where
 
         let credential = self
             .load_credential(calculate.label)
-            .ok_or(Status::NotFound)?;
+            .ok_or(Status::FILE_OR_APP_NOT_FOUND)?;
 
         self.require_touch_if_needed(&credential)?;
 
@@ -845,12 +845,12 @@ where
                     self.calculate_hotp_digest_and_bump_counter(&credential, counter)?
                 } else {
                     error_now!("HOTP missing its counter");
-                    return Err(Status::UnspecifiedPersistentExecutionError);
+                    return Err(Status::DATA_CHANGED_ERROR);
                 }
             }
             _ => {
                 // This credential kind should never be accessed through calculate()
-                return Err(Status::ConditionsOfUseNotSatisfied);
+                return Err(Status::CONDITION_OF_USE_NOT_SATISFIED);
             }
         };
 
@@ -894,25 +894,25 @@ where
             let verification = try_syscall!(self
                 .trussed
                 .sign_hmacsha1(key, &self.state.runtime.challenge))
-            .map_err(|_| Status::NotEnoughMemory)?
+            .map_err(|_| Status::NOT_ENOUGH_MEMORY_IN_FILE)?
             .signature;
 
             self.state.runtime.challenge = try_syscall!(self.trussed.random_bytes(8))
-                .map_err(|_| Status::NotEnoughMemory)?
+                .map_err(|_| Status::NOT_ENOUGH_MEMORY_IN_FILE)?
                 .bytes
                 .as_ref()
                 .try_into()
-                .map_err(|_| Status::NotEnoughMemory)?;
+                .map_err(|_| Status::NOT_ENOUGH_MEMORY_IN_FILE)?;
 
             if verification != response {
-                return Err(Status::IncorrectDataParameter);
+                return Err(Status::INCORRECT_PARAMETERS);
             }
 
             self.state.runtime.client_newly_authorized = true;
 
             // 2. calculate our response to their challenge
             let response = try_syscall!(self.trussed.sign_hmacsha1(key, challenge))
-                .map_err(|_| Status::NotEnoughMemory)?
+                .map_err(|_| Status::NOT_ENOUGH_MEMORY_IN_FILE)?
                 .signature;
 
             reply.push(0x75).ok();
@@ -924,7 +924,7 @@ where
             );
             Ok(())
         } else {
-            Err(Status::ConditionsOfUseNotSatisfied)
+            Err(Status::CONDITION_OF_USE_NOT_SATISFIED)
         }
 
         // APDU: 00 A3 00 00 20 (AUTHENTICATE)
@@ -946,7 +946,7 @@ where
         self.user_present()?;
 
         if !self.state.runtime.client_authorized {
-            return Err(Status::ConditionsOfUseNotSatisfied);
+            return Err(Status::CONDITION_OF_USE_NOT_SATISFIED);
         }
         debug_now!("clearing password/key");
         if let Some(key) = self
@@ -956,7 +956,7 @@ where
                 state.authorization_key = None;
                 Ok(existing_key)
             })
-            .map_err(|_| Status::NotEnoughMemory)?
+            .map_err(|_| Status::NOT_ENOUGH_MEMORY_IN_FILE)?
         {
             syscall!(self.trussed.delete(key));
         }
@@ -1019,7 +1019,7 @@ where
 
         info_now!("entering set password");
         if !self.state.runtime.client_authorized {
-            return Err(Status::ConditionsOfUseNotSatisfied);
+            return Err(Status::CONDITION_OF_USE_NOT_SATISFIED);
         }
 
         let command::SetPassword {
@@ -1032,14 +1032,14 @@ where
 
         info_now!("just checking");
         if kind != oath::Kind::Totp || algorithm != oath::Algorithm::Sha1 {
-            return Err(Status::InstructionNotSupportedOrInvalid);
+            return Err(Status::INSTRUCTION_NOT_SUPPORTED_OR_INVALID);
         }
 
         info_now!("injecting the key");
         let tmp_key = try_syscall!(self
             .trussed
             .unsafe_inject_shared_key(key, Location::Volatile,))
-        .map_err(|_| Status::NotEnoughMemory)?
+        .map_err(|_| Status::NOT_ENOUGH_MEMORY_IN_FILE)?
         .key;
 
         let verification = syscall!(self.trussed.sign_hmacsha1(tmp_key, challenge)).signature;
@@ -1047,14 +1047,14 @@ where
 
         // not really sure why this is all sent along, I guess some kind of fear of bitrot en-route?
         if verification != response {
-            return Err(Status::IncorrectDataParameter);
+            return Err(Status::INCORRECT_PARAMETERS);
         }
 
         // all-right, we have a new password to set
         let key = try_syscall!(self
             .trussed
             .unsafe_inject_shared_key(key, self.options.location))
-        .map_err(|_| Status::NotEnoughMemory)?
+        .map_err(|_| Status::NOT_ENOUGH_MEMORY_IN_FILE)?
         .key;
 
         debug_now!("storing password/key");
@@ -1063,7 +1063,7 @@ where
                 state.authorization_key = Some(key);
                 Ok(())
             })
-            .map_err(|_| Status::NotEnoughMemory)?;
+            .map_err(|_| Status::NOT_ENOUGH_MEMORY_IN_FILE)?;
 
         //  struct SetPassword<'l> {
         //      kind: oath::Kind,
@@ -1097,7 +1097,9 @@ where
             self.mark_failed_verification_time()?;
         }
 
-        let credential = self.load_credential(args.label).ok_or(Status::NotFound)?;
+        let credential = self
+            .load_credential(args.label)
+            .ok_or(Status::FILE_OR_APP_NOT_FOUND)?;
 
         self.require_touch_if_needed(&credential)?;
 
@@ -1109,10 +1111,10 @@ where
                     counter
                 } else {
                     debug_now!("HOTP missing its counter");
-                    return Err(Status::UnspecifiedPersistentExecutionError);
+                    return Err(Status::DATA_CHANGED_ERROR);
                 }
             }
-            _ => return Err(Status::ConditionsOfUseNotSatisfied),
+            _ => return Err(Status::CONDITION_OF_USE_NOT_SATISFIED),
         };
         let mut found = None;
         for offset in 0..=COUNTER_WINDOW_SIZE {
@@ -1120,10 +1122,10 @@ where
             // and returned to user after overflow, or the same code used each time
             let counter = current_counter
                 .checked_add(offset)
-                .ok_or(Status::UnspecifiedPersistentExecutionError)?;
+                .ok_or(Status::DATA_CHANGED_ERROR)?;
             let code = self
                 .calculate_hotp_code_for_counter(&credential, counter)
-                .map_err(|_| Status::UnspecifiedPersistentExecutionError)?;
+                .map_err(|_| Status::DATA_CHANGED_ERROR)?;
             if code == code_in {
                 found = Some(counter);
                 break;
@@ -1134,7 +1136,7 @@ where
             None => {
                 // Failed verification
                 self.wink_bad();
-                return Err(Status::VerificationFailed);
+                return Err(Status::DATA_CHANGED_WARNING);
             }
             Some(val) => val,
         };
@@ -1161,7 +1163,7 @@ where
         let code = (truncated_code & 0x7FFFFFFF)
             % 10u32
                 .checked_pow(credential.digits as _)
-                .ok_or(Status::UnspecifiedPersistentExecutionError)?;
+                .ok_or(Status::DATA_CHANGED_ERROR)?;
         debug_now!("Code for ({:?},{}): {}", credential.label, counter, code);
         Ok(code)
     }
@@ -1185,11 +1187,7 @@ where
         // and returned to user after overflow, or the same code used each time
         // load-bump counter
         let mut credential = credential.clone();
-        credential.counter = Some(
-            counter
-                .checked_add(1)
-                .ok_or(Status::UnspecifiedPersistentExecutionError)?,
-        );
+        credential.counter = Some(counter.checked_add(1).ok_or(Status::DATA_CHANGED_ERROR)?);
         // save credential back, with the updated counter
         let filename = self.filename_for_label(&credential.label);
         self.state.try_write_file(
@@ -1241,11 +1239,11 @@ where
     fn _extension_check_pin(&mut self, password: &[u8]) -> Result {
         let reply = try_syscall!(self.trussed.check_pin(
             BACKEND_USER_PIN_ID,
-            Bytes::from_slice(password).map_err(|_| iso7816::Status::IncorrectDataParameter)?
+            Bytes::from_slice(password).map_err(|_| iso7816::Status::INCORRECT_PARAMETERS)?
         ))
-        .map_err(|_| Status::SecurityStatusNotSatisfied)?;
+        .map_err(|_| Status::SECURITY_STATUS_NOT_SATISFIED)?;
         if !(reply.success) {
-            Err(Status::SecurityStatusNotSatisfied)
+            Err(Status::SECURITY_STATUS_NOT_SATISFIED)
         } else {
             Ok(())
         }
@@ -1262,7 +1260,7 @@ where
     fn _extension_set_pin(&mut self, password: &[u8]) -> Result {
         try_syscall!(self.trussed.set_pin(
             BACKEND_USER_PIN_ID,
-            Bytes::from_slice(password).map_err(|_| iso7816::Status::IncorrectDataParameter)?,
+            Bytes::from_slice(password).map_err(|_| iso7816::Status::INCORRECT_PARAMETERS)?,
             Some(ATTEMPT_COUNTER_DEFAULT_RETRIES),
             true
         ))
@@ -1272,18 +1270,18 @@ where
 
     fn _debug_trussed_backend_error(_e: trussed::Error, _l: u32) -> Status {
         info_now!("Trussed backend error: {:?} (line {:?})", _e, _l);
-        Status::UnspecifiedNonpersistentExecutionError
+        Status::EXECUTION_ERROR
     }
 
     fn _extension_change_pin(&mut self, password: &[u8], new_password: &[u8]) -> Result {
         let r = try_syscall!(self.trussed.change_pin(
             BACKEND_USER_PIN_ID,
-            Bytes::from_slice(password).map_err(|_| Status::IncorrectDataParameter)?,
-            Bytes::from_slice(new_password).map_err(|_| Status::IncorrectDataParameter)?,
+            Bytes::from_slice(password).map_err(|_| Status::INCORRECT_PARAMETERS)?,
+            Bytes::from_slice(new_password).map_err(|_| Status::INCORRECT_PARAMETERS)?,
         ))
         .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
         if !r.success {
-            return Err(Status::VerificationFailed);
+            return Err(Status::DATA_CHANGED_WARNING);
         }
         Ok(())
     }
@@ -1296,10 +1294,10 @@ where
     fn _extension_get_key_for_pin(&mut self, password: &[u8]) -> Result<KeyId> {
         let reply = try_syscall!(self.trussed.get_pin_key(
             BACKEND_USER_PIN_ID,
-            Bytes::from_slice(password).map_err(|_| iso7816::Status::IncorrectDataParameter)?
+            Bytes::from_slice(password).map_err(|_| iso7816::Status::INCORRECT_PARAMETERS)?
         ))
         .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
-        reply.result.ok_or(Status::VerificationFailed)
+        reply.result.ok_or(Status::DATA_CHANGED_WARNING)
     }
 
     fn _extension_is_pin_set(&mut self) -> Result<bool> {
@@ -1314,7 +1312,7 @@ where
         _reply: &mut Data<R>,
     ) -> Result {
         if !self._extension_is_pin_set()? {
-            return Err(Status::SecurityStatusNotSatisfied);
+            return Err(Status::SECURITY_STATUS_NOT_SATISFIED);
         }
 
         self._extension_logout()?;
@@ -1337,14 +1335,14 @@ where
         _reply: &mut Data<R>,
     ) -> Result {
         if self._extension_is_pin_set()? {
-            return Err(Status::SecurityStatusNotSatisfied);
+            return Err(Status::SECURITY_STATUS_NOT_SATISFIED);
         }
         // DESIGN Set PIN: always confirm with touch button
         self.user_present()?;
 
         let command::SetPin { password } = set_pin;
         self._extension_set_pin(password)
-            .map_err(|_| Status::VerificationFailed)?;
+            .map_err(|_| Status::DATA_CHANGED_WARNING)?;
 
         self.state.runtime.client_newly_authorized = true;
         Ok(())
@@ -1356,7 +1354,7 @@ where
         _reply: &mut Data<R>,
     ) -> Result {
         if !self._extension_is_pin_set()? {
-            return Err(Status::SecurityStatusNotSatisfied);
+            return Err(Status::SECURITY_STATUS_NOT_SATISFIED);
         }
         // DESIGN Change PIN: always confirm with touch button
         self.user_present()?;
@@ -1367,7 +1365,7 @@ where
         } = change_pin;
 
         self._extension_change_pin(password, new_password)
-            .map_err(|_| Status::VerificationFailed)?;
+            .map_err(|_| Status::DATA_CHANGED_WARNING)?;
         Ok(())
     }
 
@@ -1375,8 +1373,8 @@ where
         use crate::UP_TIMEOUT_MILLISECONDS;
         let result = syscall!(self.trussed.confirm_user_present(UP_TIMEOUT_MILLISECONDS)).result;
         result.map_err(|err| match err {
-            trussed::types::consent::Error::TimedOut => Status::SecurityStatusNotSatisfied,
-            _ => Status::UnspecifiedPersistentExecutionError,
+            trussed::types::consent::Error::TimedOut => Status::SECURITY_STATUS_NOT_SATISFIED,
+            _ => Status::DATA_CHANGED_ERROR,
         })
     }
 
@@ -1396,7 +1394,7 @@ where
     #[cfg(feature = "brute-force-delay")]
     fn get_uptime(&mut self) -> Result<Duration> {
         let uptime = try_syscall!(self.trussed.uptime())
-            .map_err(|_| Status::SecurityStatusNotSatisfied)?
+            .map_err(|_| Status::SECURITY_STATUS_NOT_SATISFIED)?
             .uptime;
         Ok(uptime)
     }
@@ -1425,7 +1423,7 @@ where
             let uptime = self.get_uptime()?;
             if uptime.saturating_sub(lft) < REQUIRED_DELAY_ON_FAILED_VERIFICATION {
                 info!("Not enough time has passed since the last failed verification attempt. Rejecting request.");
-                return Err(Status::SecurityStatusNotSatisfied);
+                return Err(Status::SECURITY_STATUS_NOT_SATISFIED);
             }
         }
         return Ok(());
@@ -1435,17 +1433,17 @@ where
         // Get HMAC slot command
         let credential = self
             .load_credential(req.get_credential_label()?)
-            .ok_or(Status::NotFound)?;
+            .ok_or(Status::FILE_OR_APP_NOT_FOUND)?;
         let credential: Credential = credential.try_unpack_into_credential()?;
         if let Some(HmacData(data)) = credential.otp {
             let key: &[u8] = data.secret;
             let signature = hmac_challenge(&mut self.trussed, data.algorithm, req.challenge, key)?;
             reply
                 .extend_from_slice(signature.as_slice())
-                .map_err(|_| Status::NotEnoughMemory)?;
+                .map_err(|_| Status::NOT_ENOUGH_MEMORY_IN_FILE)?;
             Ok(())
         } else {
-            Err(Status::IncorrectDataParameter)
+            Err(Status::INCORRECT_PARAMETERS)
         }
     }
 
@@ -1456,14 +1454,14 @@ where
         let firmware_version = &[v.major, v.minor, v.patch];
         reply
             .extend_from_slice(firmware_version)
-            .map_err(|_| Status::NotEnoughMemory)?;
+            .map_err(|_| Status::NOT_ENOUGH_MEMORY_IN_FILE)?;
 
         // Add filler to match the expected 6 bytes
         // TODO Check the actual data format for the YK request
         let other_data = &[0x42, 0x42, 0x42];
         reply
             .extend_from_slice(other_data)
-            .map_err(|_| Status::NotEnoughMemory)?;
+            .map_err(|_| Status::NOT_ENOUGH_MEMORY_IN_FILE)?;
         Ok(())
     }
 
@@ -1471,7 +1469,7 @@ where
         // Get 4-byte serial
         reply
             .extend_from_slice(&self.options.serial_number)
-            .map_err(|_| Status::NotEnoughMemory)?;
+            .map_err(|_| Status::NOT_ENOUGH_MEMORY_IN_FILE)?;
         Ok(())
     }
 
@@ -1483,7 +1481,7 @@ where
             Self::credential_directory(),
             None
         ))
-        .map_err(|_| Status::KeyReferenceNotFound)?
+        .map_err(|_| Status::REFERENCE_NOT_FOUND)?
         .data;
         if first_file.is_none() {
             return Ok(0);

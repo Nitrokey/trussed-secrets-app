@@ -156,7 +156,7 @@ impl CredentialFlat {
             }
             Kind::Hmac => Some(CredentialData::HmacData(
                 HmacData::try_from(self.algorithm, &self.secret)
-                    .map_err(|_| Status::IncorrectDataParameter)?,
+                    .map_err(|_| Status::INCORRECT_PARAMETERS)?,
             )),
             Kind::NotSet => None, // PWS only? do nothing
         };

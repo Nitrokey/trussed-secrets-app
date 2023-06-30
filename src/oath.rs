@@ -64,7 +64,7 @@ impl TryFrom<u8> for Tag {
             0x84 => Tag::PwsPassword,
             0x85 => Tag::PwsMetadata,
             0x8F => Tag::SerialNumber,
-            _ => return Err(Self::Error::IncorrectDataParameter),
+            _ => return Err(Self::Error::INCORRECT_PARAMETERS),
         })
     }
 }
@@ -85,7 +85,7 @@ impl TryFrom<u8> for Algorithm {
             0x1 => Sha1,
             0x2 => Sha256,
             0x3 => Sha512,
-            _ => return Err(Self::Error::IncorrectDataParameter),
+            _ => return Err(Self::Error::INCORRECT_PARAMETERS),
         })
     }
 }
@@ -109,7 +109,7 @@ impl TryFrom<u8> for Kind {
             0x30 => Kind::HotpReverse,
             0x40 => Kind::Hmac,
             0xF0 => Kind::NotSet,
-            _ => return Err(Self::Error::IncorrectDataParameter),
+            _ => return Err(Self::Error::INCORRECT_PARAMETERS),
         })
     }
 }
@@ -139,7 +139,7 @@ impl TryFrom<u8> for YkInstruction {
         Ok(match byte {
             0x01 => ApiRequest,
             0x03 => Status,
-            _ => return Err(Self::Error::InstructionNotSupportedOrInvalid),
+            _ => return Err(Self::Error::INSTRUCTION_NOT_SUPPORTED_OR_INVALID),
         })
     }
 }
@@ -161,7 +161,7 @@ impl TryFrom<u8> for YkCommand {
             0x10 => GetSerial,
             0x30 => HmacSlot1,
             0x38 => HmacSlot2,
-            _ => return Err(Self::Error::IncorrectP1OrP2Parameter),
+            _ => return Err(Self::Error::INCORRECT_P1P2),
         })
     }
 }
@@ -223,7 +223,7 @@ impl TryFrom<u8> for Instruction {
             0xb3 => ChangePIN,
             0xb4 => SetPIN,
             0xb5 => GetCredential,
-            _ => return Err(Self::Error::InstructionNotSupportedOrInvalid),
+            _ => return Err(Self::Error::INSTRUCTION_NOT_SUPPORTED_OR_INVALID),
         })
     }
 }

@@ -77,15 +77,18 @@ required-features = ["ctaphid", "devel"]
 flexiber = { git = "https://github.com/Nitrokey/flexiber", tag = "0.1.1.nitrokey" }
 
 # forked
-admin-app = { git = "https://github.com/Nitrokey/admin-app", tag = "v0.1.0-nitrokey.3" }
-ctap-types = { git = "https://github.com/Nitrokey/ctap-types", tag = "v0.1.2-nitrokey.1" }
-fido-authenticator = { git = "https://github.com/Nitrokey/fido-authenticator.git", tag = "v0.1.1-nitrokey.5" }
+admin-app = { git = "https://github.com/Nitrokey/admin-app", rev = "331658acdd8d7ec444df9a2403528995b6c2e358" }
+ctap-types = { git = "https://github.com/Nitrokey/ctap-types", branch = "status-const" }
+fido-authenticator = { git = "https://github.com/Nitrokey/fido-authenticator.git", rev = "8563a5e89b96012cb49ab70f472363307478f185" }
 trussed = { git = "https://github.com/Nitrokey/trussed", tag = "v0.1.0-nitrokey.12" }
 
 # unreleased upstream changes
 usbd-ctaphid = { git = "https://github.com/Nitrokey/usbd-ctaphid", tag = "v0.1.0-nitrokey.1" }
 ctaphid-dispatch = { git = "https://github.com/Nitrokey/ctaphid-dispatch", tag = "v0.1.1-nitrokey.2" }
+apdu-dispatch = { git = "https://github.com/Nitrokey/apdu-dispatch", rev = "201058adc02349a5aa025aea002e7445aea25d03" }
+iso7816 = { git = "https://github.com/sosthene-nitrokey/iso7816.git", rev = "504f32dc567360844faef215f944299c52e7601a" }
 
 # unreleased crates
 trussed-auth = { git = "https://github.com/Nitrokey/trussed-auth", tag = "v0.2.2-nitrokey.1" }
 trussed-usbip = { git = "https://github.com/Nitrokey/pc-usbip-runner", tag = "v0.0.1-nitrokey.1" }
+
