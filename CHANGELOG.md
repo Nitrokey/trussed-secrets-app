@@ -1,5 +1,39 @@
 # Changelog
 
+## [Unreleased](https://github.com/nitrokey/trussed-secrets-app/tree/HEAD)
+
+[Full Changelog](https://github.com/nitrokey/trussed-secrets-app/compare/v0.12.0...HEAD)
+
+**Fixed bugs:**
+
+- Confirm Credential removal with a touch [\#92](https://github.com/Nitrokey/trussed-secrets-app/issues/92)
+
+## [v0.12.0](https://github.com/nitrokey/trussed-secrets-app/tree/v0.12.0) (2023-06-28)
+
+[Full Changelog](https://github.com/nitrokey/trussed-secrets-app/compare/v0.12.0-rc1...v0.12.0)
+
+## [v0.12.0-rc1](https://github.com/nitrokey/trussed-secrets-app/tree/v0.12.0-rc1) (2023-06-28)
+
+[Full Changelog](https://github.com/nitrokey/trussed-secrets-app/compare/v0.11.0-interrupt.1...v0.12.0-rc1)
+
+**Merged pull requests:**
+
+- force touch whenever a credential is deleted [\#93](https://github.com/Nitrokey/trussed-secrets-app/pull/93) ([peterwilli](https://github.com/peterwilli))
+- Do not panic while listing credentials [\#91](https://github.com/Nitrokey/trussed-secrets-app/pull/91) ([szszszsz](https://github.com/szszszsz))
+- Update usbip simulation to work with request cancellation [\#90](https://github.com/Nitrokey/trussed-secrets-app/pull/90) ([szszszsz](https://github.com/szszszsz))
+
+## [v0.11.0-interrupt.1](https://github.com/nitrokey/trussed-secrets-app/tree/v0.11.0-interrupt.1) (2023-06-21)
+
+[Full Changelog](https://github.com/nitrokey/trussed-secrets-app/compare/0.11.0...v0.11.0-interrupt.1)
+
+**Fixed bugs:**
+
+- NK3AM fails to register a Credential in the clean state [\#88](https://github.com/Nitrokey/trussed-secrets-app/issues/88)
+
+**Merged pull requests:**
+
+- Adapt to interrupt trussed changes [\#72](https://github.com/Nitrokey/trussed-secrets-app/pull/72) ([sosthene-nitrokey](https://github.com/sosthene-nitrokey))
+
 ## [0.11.0](https://github.com/nitrokey/trussed-secrets-app/tree/0.11.0) (2023-05-30)
 
 [Full Changelog](https://github.com/nitrokey/trussed-secrets-app/compare/0.11.0-rc2...0.11.0)
