@@ -638,14 +638,8 @@ where
 
         // info_now!("recv {:?}", &register);
 
-        // Allow to overwrite existing credentials by default
-        // 0. ykman does not call delete before register, so we need to speculatively
-        // delete the credential (the credential file would be replaced, but we need
-        // to delete the secret key).
-        self.delete(command::Delete {
-            label: register.credential.label,
-        })
-        .ok();
+        // Explicitly disallow to overwrite existing credentials by default
+        self.err_if_credential_with_label_exists(register.credential.label)?;
 
         // 1. Replace secret in credential with handle
         let credential =
@@ -676,6 +670,18 @@ where
         }
 
         Ok(())
+    }
+
+    fn credential_with_label_exists(&mut self, label: &[u8]) -> bool {
+        let filename = self.filename_for_label(label);
+        self.state.file_exists(&mut self.trussed, filename)
+    }
+
+    fn err_if_credential_with_label_exists(&mut self, label: &[u8]) -> Result {
+        match self.credential_with_label_exists(label) {
+            false => Ok(()),
+            true => Err(Status::OperationBlocked),
+        }
     }
 
     fn filename_for_label(&mut self, label: &[u8]) -> trussed::types::PathBuf {
