@@ -202,6 +202,7 @@ pub enum Instruction {
     ChangePIN = 0xb3,
     SetPIN = 0xb4,
     GetCredential = 0xb5,
+    RenameCredential = 0xb6,
 }
 
 impl TryFrom<u8> for Instruction {

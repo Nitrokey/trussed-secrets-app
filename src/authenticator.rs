@@ -11,8 +11,8 @@ use core::time::Duration;
 use flexiber::EncodableHeapless;
 use heapless_bytes::Bytes;
 use iso7816::{Data, Status};
-use trussed::types::Location;
 use trussed::types::{KeyId, Message};
+use trussed::types::{Location, ShortData};
 use trussed::{self, client, syscall, try_syscall};
 
 use crate::calculate::hmac_challenge;
@@ -316,6 +316,7 @@ where
             Command::Register(register) => self.register(register),
             Command::Calculate(calculate) => self.calculate(calculate, reply),
             Command::GetCredential(get) => self.get_credential(get, reply),
+            Command::RenameCredential(rename) => self.rename_credential(rename, reply),
             #[cfg(feature = "calculate-all")]
             Command::CalculateAll(calculate_all) => self.calculate_all(calculate_all, reply),
             Command::Delete(delete) => self.delete(delete),
@@ -796,6 +797,61 @@ where
                 return Err(1);
             }
         }
+        Ok(())
+    }
+
+    /// Rename credential
+    ///
+    /// Realized by loading FlatCredential object, changing its label,
+    /// writing under the new name and removing the previous file.
+    ///
+    /// Requires button confirmation before starting.
+    ///
+    /// returns: no data, except for the result code
+    /// Errors:
+    ///     - OperationBlocked if the new name is occupied already (checked by name hash)
+    ///     - NotFound, if the current credential can't be open (e.g. due to key not available) or deserialized
+    ///     - UnspecifiedNonpersistentExecutionError, if the old file cannot be removed, or serialization error
+    ///     - NotEnoughMemory, if new file cannot be written
+    ///     - SecurityStatusNotSatisfied, if the encryption key cannot be fetched
+    fn rename_credential<const R: usize>(
+        &mut self,
+        rename_req: command::RenameCredential<'_>,
+        _reply: &mut Data<R>,
+    ) -> Result {
+        // DESIGN Get operation confirmation from user before proceeding
+        self.user_present()?;
+
+        // DESIGN check if the target name is occupied already
+        self.err_if_credential_with_label_exists(rename_req.new_label)?;
+        if !self.credential_with_label_exists(rename_req.label) {
+            return Err(Status::NotFound);
+        }
+
+        let credential = {
+            let mut c = self
+                .load_credential(rename_req.label)
+                .ok_or(Status::NotFound)?;
+            c.label =
+                ShortData::from_slice(rename_req.new_label).map_err(|_| Status::NotEnoughMemory)?;
+            c
+        };
+
+        // Serialize the credential (implicitly) and store it
+        let filename = self.filename_for_label(rename_req.new_label);
+        self.state.try_write_file(
+            &mut self.trussed,
+            filename,
+            &credential,
+            credential.encryption_key_type,
+        )?;
+
+        // Remove old file name
+        let filename_old = self.filename_for_label(rename_req.label);
+        try_syscall!(self
+            .trussed
+            .remove_file(self.options.location, filename_old))
+        .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?;
         Ok(())
     }
 
