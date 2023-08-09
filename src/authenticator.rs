@@ -450,9 +450,9 @@ where
 
         let label = &delete.label;
         if let Some(_credential) = self.load_credential(label) {
-            let _filename = self.filename_for_label(label);
+            let filename = self.filename_for_label(label);
             let _deletion_result =
-                try_syscall!(self.trussed.remove_file(self.options.location, _filename));
+                try_syscall!(self.trussed.remove_file(self.options.location, filename));
             debug_now!(
                 "Delete credential with filename {}, result: {:?}",
                 &self.filename_for_label(label),
