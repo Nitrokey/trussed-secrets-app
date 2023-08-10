@@ -673,13 +673,13 @@ where
         Ok(())
     }
 
-    fn credential_with_label_exists(&mut self, label: &[u8]) -> bool {
+    fn credential_with_label_exists(&mut self, label: &[u8]) -> Result<bool> {
         let filename = self.filename_for_label(label);
         self.state.file_exists(&mut self.trussed, filename)
     }
 
     fn err_if_credential_with_label_exists(&mut self, label: &[u8]) -> Result {
-        match self.credential_with_label_exists(label) {
+        match self.credential_with_label_exists(label)? {
             false => Ok(()),
             true => Err(Status::OperationBlocked),
         }
@@ -824,7 +824,7 @@ where
 
         // DESIGN check if the target name is occupied already
         self.err_if_credential_with_label_exists(rename_req.new_label)?;
-        if !self.credential_with_label_exists(rename_req.label) {
+        if !self.credential_with_label_exists(rename_req.label)? {
             return Err(Status::NotFound);
         }
 

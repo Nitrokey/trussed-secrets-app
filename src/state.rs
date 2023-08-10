@@ -180,8 +180,17 @@ impl State {
         (Err(encrypted_container::Error::FailedDecryption), None)
     }
 
-    pub fn file_exists<T: FilesystemClient>(&mut self, trussed: &mut T, filename: PathBuf) -> bool {
-        try_syscall!(trussed.read_file(self.location, filename)).is_ok()
+    pub fn file_exists<T: FilesystemClient>(
+        &mut self,
+        trussed: &mut T,
+        filename: PathBuf,
+    ) -> crate::Result<bool> {
+        Ok(
+            try_syscall!(trussed.entry_metadata(self.location, filename))
+                .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?
+                .metadata
+                .is_some(),
+        )
     }
 
     pub fn try_read_file<T, O>(
