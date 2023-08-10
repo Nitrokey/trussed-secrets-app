@@ -13,6 +13,7 @@ use serde::Serialize;
 use crate::command::EncryptionKeyType;
 use cbor_smol::cbor_deserialize;
 use encrypted_container::EncryptedDataContainer;
+use trussed::client::FilesystemClient;
 use trussed::types::Message;
 use trussed::{
     syscall, try_syscall,
@@ -177,6 +178,19 @@ impl State {
             }
         }
         (Err(encrypted_container::Error::FailedDecryption), None)
+    }
+
+    pub fn file_exists<T: FilesystemClient>(
+        &mut self,
+        trussed: &mut T,
+        filename: PathBuf,
+    ) -> crate::Result<bool> {
+        Ok(
+            try_syscall!(trussed.entry_metadata(self.location, filename))
+                .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?
+                .metadata
+                .is_some(),
+        )
     }
 
     pub fn try_read_file<T, O>(
