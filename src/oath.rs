@@ -224,6 +224,7 @@ impl TryFrom<u8> for Instruction {
             0xb3 => ChangePIN,
             0xb4 => SetPIN,
             0xb5 => GetCredential,
+            0xb6 => RenameCredential,
             _ => return Err(Self::Error::InstructionNotSupportedOrInvalid),
         })
     }
