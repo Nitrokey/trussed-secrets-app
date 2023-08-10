@@ -203,6 +203,7 @@ pub enum Instruction {
     SetPIN = 0xb4,
     GetCredential = 0xb5,
     RenameCredential = 0xb6,
+    CredentialUpdate = 0xb7,
 }
 
 impl TryFrom<u8> for Instruction {
@@ -225,6 +226,7 @@ impl TryFrom<u8> for Instruction {
             0xb4 => SetPIN,
             0xb5 => GetCredential,
             0xb6 => RenameCredential,
+            0xb7 => CredentialUpdate,
             _ => return Err(Self::Error::InstructionNotSupportedOrInvalid),
         })
     }

@@ -5,7 +5,8 @@
 
 use crate::command;
 use crate::command::{
-    CredentialData, EncryptionKeyType, HmacData, OtpCredentialData, PasswordSafeData,
+    CredentialData, CredentialUpdate, EncryptionKeyType, HmacData, OtpCredentialData,
+    PasswordSafeData,
 };
 use crate::oath::{Algorithm, Kind};
 use iso7816::Status;
@@ -207,5 +208,30 @@ impl CredentialFlat {
         }
 
         Ok(cred)
+    }
+
+    /// Update credential fields with new values, and save
+    pub fn update_from(&mut self, update_req: CredentialUpdate) -> Result<(), Status> {
+        if let Some(new_label) = update_req.new_label {
+            self.label = ShortData::from_slice(new_label).map_err(|_| Status::NotEnoughMemory)?;
+        }
+        if let Some(p) = update_req.properties {
+            self.touch_required = p.touch_required();
+        }
+        if let Some(pws) = update_req.password_safe {
+            if pws.login.len() > 0 {
+                self.login = Self::get_bytes_or_none_if_empty(pws.login)
+                    .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?;
+            }
+            if pws.password.len() > 0 {
+                self.password = Self::get_bytes_or_none_if_empty(pws.password)
+                    .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?;
+            }
+            if pws.metadata.len() > 0 {
+                self.metadata = Self::get_bytes_or_none_if_empty(pws.metadata)
+                    .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?;
+            }
+        }
+        Ok(())
     }
 }

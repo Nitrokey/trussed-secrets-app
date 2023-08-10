@@ -5,7 +5,7 @@
 
 use block_padding::{Pkcs7, RawPadding};
 use core::convert::{TryFrom, TryInto};
-use flexiber::{SimpleTag, TagLike};
+use flexiber::{Encodable, SimpleTag, TagLike};
 use serde::{Deserialize, Serialize};
 
 use iso7816::command::class::Class;
@@ -54,6 +54,8 @@ pub enum Command<'l> {
     GetCredential(GetCredential<'l>),
     /// Rename Credential
     RenameCredential(RenameCredential<'l>),
+    /// Update Credential
+    UpdateCredential(CredentialUpdate<'l>),
     /// Return serial number of the device. Yubikey-compatible command. Used in KeepassXC.
     YkSerial,
     /// Return application's status. Yubikey-compatible command. Used in KeepassXC.
@@ -518,6 +520,93 @@ pub struct Credential<'l> {
     pub password_safe: Option<PasswordSafeData<'l>>,
 }
 
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Default)]
+pub struct CredentialUpdate<'l> {
+    pub label: &'l [u8],
+    pub new_label: Option<&'l [u8]>,
+    pub properties: Option<Properties>,
+    pub password_safe: Option<PasswordSafeData<'l>>,
+}
+
+impl<'l, const C: usize> TryFrom<&'l Data<C>> for CredentialUpdate<'l> {
+    type Error = Status;
+    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
+        use flexiber::TaggedSlice;
+        let mut decoder = flexiber::Decoder::new(data);
+
+        let first: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
+        ensure(
+            first.tag() == (Tag::Name as u8).try_into().unwrap(),
+            FAILED_PARSING_ERROR,
+        )?;
+        let label = first.as_bytes();
+
+        if label.is_empty() {
+            return Err(FAILED_PARSING_ERROR);
+        }
+        // end of obligatory fields parsing
+
+        let mut res = CredentialUpdate {
+            label,
+            ..Default::default()
+        };
+
+        // TODO This would be better modeled with Option, than empty slice,
+        //  to allow fields removal by setting the request fields to empty slice.
+        //  Currently only setting is possible. A workaround for now is to
+        //  set the value to remove to " ".
+        let mut pws = PasswordSafeData {
+            login: &[],
+            password: &[],
+            metadata: &[],
+        };
+        // FIXME remove the need for this additional buffer - requires flexiber modification to
+        //  to access the tag byte as u8, without unpacking completely
+        let mut buf = [0u8; 255];
+
+        let mut next_decoded: Option<TaggedSlice> = decoder.decode().ok();
+        while let Some(next) = next_decoded {
+            next.encode_to_slice(&mut buf).unwrap();
+            let tag = buf[0];
+            let tag = Tag::try_from(tag).map_err(|_| FAILED_PARSING_ERROR)?;
+            let tag_data = next.as_bytes();
+
+            match tag {
+                Tag::Property => {
+                    res.properties = Some(Properties(tag_data[0]));
+                }
+                // new label
+                Tag::Name => {
+                    res.new_label = Some(tag_data);
+                }
+                Tag::PwsLogin => {
+                    pws.login = tag_data;
+                }
+                Tag::PwsPassword => {
+                    pws.password = tag_data;
+                }
+                Tag::PwsMetadata => {
+                    pws.metadata = tag_data;
+                }
+                _ => {
+                    // Unmatched tags should return error
+                    return Err(Status::IncorrectDataParameter);
+                }
+            }
+            next_decoded = decoder.decode().ok();
+        }
+        res.password_safe = {
+            if pws.non_empty() {
+                Some(pws)
+            } else {
+                None
+            }
+        };
+
+        Ok(res)
+    }
+}
+
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum CredentialData<'l> {
     OtpData(OtpCredentialData<'l>),
@@ -566,13 +655,13 @@ impl<'l> PasswordSafeData<'l> {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct Properties(u8);
+pub struct Properties(u8);
 
 impl Properties {
-    fn touch_required(&self) -> bool {
+    pub fn touch_required(&self) -> bool {
         self.0 & (oath::Properties::RequireTouch as u8) != 0
     }
-    fn pin_encrypted(&self) -> bool {
+    pub fn pin_encrypted(&self) -> bool {
         self.0 & (oath::Properties::PINEncrypt as u8) != 0
     }
 }
@@ -888,6 +977,9 @@ impl<'l, const C: usize> TryFrom<&'l iso7816::Command<C>> for Command<'l> {
                 }
                 (0x00, oath::Instruction::RenameCredential, 0x00, 0x00) => {
                     Self::RenameCredential(RenameCredential::try_from(data)?)
+                }
+                (0x00, oath::Instruction::CredentialUpdate, 0x00, 0x00) => {
+                    Self::UpdateCredential(CredentialUpdate::try_from(data)?)
                 }
                 (0x00, oath::Instruction::SendRemaining, 0x00, 0x00) => Self::SendRemaining,
                 _ => return Err(Status::InstructionNotSupportedOrInvalid),
