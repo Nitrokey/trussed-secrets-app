@@ -52,6 +52,8 @@ pub enum Command<'l> {
     SendRemaining,
     /// Get Credential data
     GetCredential(GetCredential<'l>),
+    /// Rename Credential
+    RenameCredential(RenameCredential<'l>),
     /// Return serial number of the device. Yubikey-compatible command. Used in KeepassXC.
     YkSerial,
     /// Return application's status. Yubikey-compatible command. Used in KeepassXC.
@@ -294,6 +296,36 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for SetPin<'l> {
         let password = first.as_bytes();
 
         Ok(SetPin { password })
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RenameCredential<'l> {
+    pub label: &'l [u8],
+    pub new_label: &'l [u8],
+}
+
+impl<'l, const C: usize> TryFrom<&'l Data<C>> for RenameCredential<'l> {
+    type Error = Status;
+    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
+        use flexiber::TaggedSlice;
+        let mut decoder = flexiber::Decoder::new(data);
+
+        let first: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
+        ensure(
+            first.tag() == (Tag::Name as u8).try_into().unwrap(),
+            FAILED_PARSING_ERROR,
+        )?;
+        let label = first.as_bytes();
+
+        let second: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
+        ensure(
+            second.tag() == (Tag::Name as u8).try_into().unwrap(),
+            FAILED_PARSING_ERROR,
+        )?;
+        let new_label = second.as_bytes();
+
+        Ok(RenameCredential { label, new_label })
     }
 }
 
@@ -853,6 +885,9 @@ impl<'l, const C: usize> TryFrom<&'l iso7816::Command<C>> for Command<'l> {
                 }
                 (0x00, oath::Instruction::GetCredential, 0x00, 0x00) => {
                     Self::GetCredential(GetCredential::try_from(data)?)
+                }
+                (0x00, oath::Instruction::RenameCredential, 0x00, 0x00) => {
+                    Self::RenameCredential(RenameCredential::try_from(data)?)
                 }
                 (0x00, oath::Instruction::SendRemaining, 0x00, 0x00) => Self::SendRemaining,
                 _ => return Err(Status::InstructionNotSupportedOrInvalid),
