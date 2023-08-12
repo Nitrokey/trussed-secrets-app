@@ -1,9 +1,10 @@
 
 
-# Oath Authenticator Client
+# Secrets App
 
-The [Oath Authenticator] application has been chosen as a good candidate due to being written in an extensive way, and
-offered in the same language as the platform, thus guaranteeing high compatibility and maintainability.
+For the base of Secrets App the [oath-authenticator] application has been chosen as a good candidate due to being
+written in an extensive way, and offered in the same language as the platform, thus guaranteeing high compatibility and
+maintainability.
 
 It offers HOTP and TOTP implementations ([RFC4226] and [RFC6238] respectively), with SHA1 and SHA256 hashes support. It
 manages to process 320+ bits of the shared key.
@@ -12,20 +13,20 @@ The protocol it uses - [YKOATH] - is using [ISO7816-4] commands for communicatio
 
 [RFC6238]: https://www.rfc-editor.org/rfc/rfc6238
 
-[Oath Authenticator]: https://github.com/trussed-dev/oath-authenticator
+[oath-authenticator]: https://github.com/trussed-dev/oath-authenticator
 
 [YKOATH]: https://developers.yubico.com/OATH/YKOATH_Protocol.html
 
 ## Protocol Description
 
-This implementation uses CTAPHID to transfer commands to the Oath Authenticator application, compiled into the Nitrokey
+This implementation uses CTAPHID to transfer commands to the Secrets App application, compiled into the Nitrokey
 3 firmware. This transport was used to improve compatibility on platforms, where the default transport for this
 application, CCID, is not easily available (e.g. due to being taken by other services, or requiring Administrator
 privileges). In CTAPHID, a custom vendor command number was selected `0x70`, thus allowing for a compatible extension of
 any FIDO device.
 
 Below is a visualization of getting the OTP code from the device. First the ISO7816 message is created and encapsulated
-into CTAPHID message, which is unpacked on the device and passed further to the Oath Authenticator. Once parsed and
+into CTAPHID message, which is unpacked on the device and passed further to the Secrets App. Once parsed and
 processed, the response is produced, which traverses the same way backwards, finally reaching Python client over
 CTAPHID.
 
@@ -33,31 +34,38 @@ CTAPHID.
 ```mermaid
 sequenceDiagram
     Python Client ->> FIDO2 device : CTAPHID message
-    FIDO2 device ->> Oath Authenticator : ISO7816 message
-    Oath Authenticator -->> FIDO2 device   : Response
+    FIDO2 device ->> Secrets App : ISO7816 message
+    Secrets App -->> FIDO2 device   : Response
     FIDO2 device -->> Python Client : Response
 ```
 
-Following commands are accepted by the Oath Authenticator:
+Following commands are accepted by the Secrets App:
 
-| Command   | Cls  | Ins  | P1     | P2   | Description                              |
-|-----------|------|------|--------|------|------------------------------------------|
-| Put       | 0x00 | 0x01 | 0x00   | 0x00 | Register a new OTP credential            |
-| Delete    | 0x00 | 0x02 | 0x00   | 0x00 | Delete a registered OTP credential       |
-| Reset     | 0x00 | 0x04 | 0xDE   | 0xAD | Remove all stored OTP credentials        |
-| List      | 0x00 | 0xA1 | 0x00   | 0x00 | List stored OTP credentials              |
-| Calculate | 0x00 | 0xA2 | 0x00   | 0x01 | Calculate an OTP code for the credential |
+| Command          | Cls  | Ins  | P1   | P2   | Description                                                     |
+|------------------|------|------|------|------|-----------------------------------------------------------------|
+| Put              | 0x00 | 0x01 | 0x00 | 0x00 | Register a new OTP credential                                   |
+| Delete           | 0x00 | 0x02 | 0x00 | 0x00 | Delete a registered OTP credential                              |
+| Reset            | 0x00 | 0x04 | 0xDE | 0xAD | Remove all stored OTP credentials                               |
+| List             | 0x00 | 0xA1 | 0x00 | 0x00 | List stored OTP credentials                                     |
+| Calculate        | 0x00 | 0xA2 | 0x00 | 0x01 | Calculate an OTP code for the credential                        |
+| VerifyCode       | 0x00 | 0xB1 | 0x00 | 0x00 | Reverse HOTP - verify incoming HOTP code                        |
+| VerifyPIN        | 0x00 | 0xB2 | 0x00 | 0x00 | Authenticate with provided PIN                                  |
+| ChangePIN        | 0x00 | 0xB3 | 0x00 | 0x00 | Change PIN                                                      |
+| SetPIN           | 0x00 | 0xB4 | 0x00 | 0x00 | Set PIN. Can be called only once, directly after factory reset. |
+| GetCredential    | 0x00 | 0xB5 | 0x00 | 0x00 | Get static password entry                                       |
+| CredentialUpdate | 0x00 | 0xB7 | 0x00 | 0x00 | Update static password entry                                    |
 
 This is a standard ISO7816 encoding of the command and its parameters. The P1 and P2 are mostly unused, except for the
 case of Reset and Calculate commands. The class `cls` parameter is always `0`.
 
-Same table, but graphically:
+Presenting graphically different variants for each field (selected commands) :
 
 ![Command format](images/command_format.png "Command format")
 
 
-
 ## Commands
+
+Let's describe chosen commands in detail:
 
 ### Put
 
@@ -140,7 +148,7 @@ code_string = str(code).zfill(digits)
 
 ### List
 
-List command returns a TLV encoded list of binary strings:
+List command returns a TLV encoded list of binary strings (version 1 format):
 
 
 ![Credetials list](images/credentials.png "Credentials")
@@ -172,43 +180,56 @@ These can be run against a USB/IP device simulation of Nitrokey 3.
 
 ## Client Application
 
-The Oath Authenticator can be reached through the described protocol over a pynitrokey CLI experimental interface. Excerpt from its help screen follows:
+The Secrets App can be reached through the described protocol over a pynitrokey CLI experimental interface. Excerpt from its help screen follows:
 
 ```text
-$ nitropy nk3 otp
-Command line tool to interact with Nitrokey devices 0.4.30
-Usage: nitropy nk3 otp [OPTIONS] COMMAND [ARGS]...
+$ nitropy nk3 secrets
+Command line tool to interact with Nitrokey devices 0.4.39
+Usage: nitropy nk3 secrets [OPTIONS] COMMAND [ARGS]...
 
-  Manage OTP secrets on the device.
+  Nitrokey Secrets App. Manage OTP and Password Safe secrets on the device.
+  Use NITROPY_SECRETS_PASSWORD to pass password for the scripted execution.
 
 Options:
   --help  Show this message and exit.
 
 Commands:
-  get       Generate OTP code from registered credential.
-  register  Register OTP credential.
-  remove    Remove OTP credential.
-  reset     Remove all OTP credentials from the device.
-  show      List registered OTP credentials.
-
-$ nitropy nk3 otp register --help
-Command line tool to interact with Nitrokey devices 0.4.30
-Usage: nitropy nk3 otp register [OPTIONS] NAME SECRET
+  add-challenge-response  Register Challenge-Response credential.
+  add-otp (register)      Register OTP credential.
+  add-password            Register Password Safe credential.
+  get-otp (get)           Generate OTP code from registered credential.
+  get-password            Get Password Safe Entry
+  list                    List registered OTP credentials.
+  remove                  Remove OTP credential.
+  rename                  Rename credential.
+  reset                   Remove all OTP credentials from the device.
+  set-pin                 Set or change the PIN used to authenticate to...
+  status                  Show application status
+  update                  Update credential.
+  verify                  Proceed with the incoming OTP code verification...
+$ nitropy nk3 secrets register --help
+Command line tool to interact with Nitrokey devices 0.4.39
+Usage: nitropy nk3 secrets register [OPTIONS] NAME SECRET
 
   Register OTP credential.
 
-  Write SECRET under the NAME. SECRET should be encoded in base32 format.
+  Write credential under the NAME. Secret should be base32 encoded.
 
 Options:
-  --digits_str [6|8]       Digits count
-  --kind [TOTP|HOTP]       OTP mechanism to use
-  --hash [SHA1|SHA256]     Hash algorithm to use
-  --counter_start INTEGER  Starting value for the counter (HOTP only)
-  --help                   Show this message and exit.
-
-$ nitropy nk3 otp get --help
-Command line tool to interact with Nitrokey devices 0.4.30
-Usage: nitropy nk3 otp get [OPTIONS] NAME
+  --digits-str [6|8]              Digits count
+  --kind [HOTP|TOTP|HOTP_REVERSE|HMAC]
+                                  OTP mechanism to use. Case insensitive.
+  --hash [SHA1|SHA256]            Hash algorithm to use
+  --counter-start INTEGER         Starting value for the counter (HOTP only)
+  --touch-button                  This credential requires button press before
+                                  use
+  --protect-with-pin              This credential should be additionally
+                                  encrypted with a PIN, which will be required
+                                  before each use
+  --help                          Show this message and exit.
+$ nitropy nk3 secrets get-otp --help
+Command line tool to interact with Nitrokey devices 0.4.39
+Usage: nitropy nk3 secrets get-otp [OPTIONS] NAME
 
   Generate OTP code from registered credential.
 
@@ -217,6 +238,17 @@ Options:
                        only)
   --period INTEGER     The period to use in seconds (TOTP only)
   --help               Show this message and exit.
+$ nitropy nk3 secrets get-password --help
+Command line tool to interact with Nitrokey devices 0.4.39
+Usage: nitropy nk3 secrets get-password [OPTIONS] NAME
+
+  Get Password Safe Entry
+
+Options:
+  --password           Print password only
+  --format [json|csv]  Format of the output
+  --help               Show this message and exit.
+
 ```
 
 
@@ -227,7 +259,6 @@ Options:
 |-----------------|----------------------------|----------------------------|----------------------------------|
 | Select          | No                         | No                         | No                               |
 | Calculate       | Yes*                       | No                         | No                               |
-| CalculateAll    | No                         | No                         | No                               |
 | Delete          | Yes                        | Yes*                       | No                               |
 | ListCredentials | No                         | Yes*                       | No                               |
 | Register        | Yes                        | Yes*                       | No                               |
@@ -237,6 +268,8 @@ Options:
 | ChangePin       | Yes                        | -                          | No                               |
 | VerifyCode      | Yes*                       | No                         | No                               |
 | SendRemaining   | No                         | No                         | No                               |
+| GetCredential   | Yes*                       | No                         | No                               |
+| CredentialUpdate| Yes                        | Yes*                       | No                               |
 
 
 Notes: 
@@ -244,7 +277,8 @@ Notes:
 access to it, otherwise it will be reported as not found. Similarly, PIN-encrypted credentials will not be listed 
 with `List` command until authenticated. `Delete` command require PIN for Credentials created with PIN-encryption.
 2. Credentials can be configured to be allowed for use only after touch button is pressed.
-3. \* Touch Button press is required for Credentials, which were created with such attribute. 
+3. \* Touch Button press is required for Credentials, which were created with such attribute,
+    but omitted if the PIN was already verified
    
 ## Further development
 
