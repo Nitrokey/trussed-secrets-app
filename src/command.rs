@@ -566,7 +566,8 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for CredentialUpdate<'l> {
 
         let mut next_decoded: Option<TaggedSlice> = decoder.decode().ok();
         while let Some(next) = next_decoded {
-            next.encode_to_slice(&mut buf).unwrap();
+            next.encode_to_slice(&mut buf)
+                .map_err(|_| FAILED_PARSING_ERROR)?;
             let tag = buf[0];
             let tag = Tag::try_from(tag).map_err(|_| FAILED_PARSING_ERROR)?;
             let tag_data = next.as_bytes();
