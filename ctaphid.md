@@ -1,5 +1,3 @@
-
-
 # Secrets App
 
 For the base of Secrets App the [oath-authenticator] application has been chosen as a good candidate due to being
@@ -31,6 +29,7 @@ processed, the response is produced, which traverses the same way backwards, fin
 CTAPHID.
 
  <!-- ![Sequence diagram of the exchange](images/exchange.svg "Exchange") -->
+
 ```mermaid
 sequenceDiagram
     Python Client ->> FIDO2 device : CTAPHID message
@@ -62,7 +61,6 @@ Presenting graphically different variants for each field (selected commands) :
 
 ![Command format](images/command_format.png "Command format")
 
-
 ## Commands
 
 Let's describe chosen commands in detail:
@@ -71,9 +69,9 @@ Let's describe chosen commands in detail:
 
 #### Input
 
-| Command   | Cls  | Ins  | P1     | P2   | Description                              |
-|-----------|------|------|--------|------|------------------------------------------|
-| Put       | 0x00 | 0x01 | 0x00   | 0x00 | Register a new OTP credential            |
+| Command | Cls  | Ins  | P1   | P2   | Description                   |
+|---------|------|------|------|------|-------------------------------|
+| Put     | 0x00 | 0x01 | 0x00 | 0x00 | Register a new OTP credential |
 
 | Parameters     | Type   | Description                                                                                |
 |----------------|--------|--------------------------------------------------------------------------------------------|
@@ -111,9 +109,9 @@ None
 
 #### Input
 
-| Command   | Cls  | Ins  | P1     | P2   | Description                              |
-|-----------|------|------|--------|------|------------------------------------------|
-| Calculate | 0x00 | 0xA2 | 0x00   | 0x01 | Calculate an OTP code for the credential |
+| Command   | Cls  | Ins  | P1   | P2   | Description                              |
+|-----------|------|------|------|------|------------------------------------------|
+| Calculate | 0x00 | 0xA2 | 0x00 | 0x01 | Calculate an OTP code for the credential |
 
 | Parameters   | Type   | Description                                                     |
 |--------------|--------|-----------------------------------------------------------------|
@@ -125,7 +123,6 @@ Fields marked with `*` are concatenated with the `Key` field.
 #### Response
 
 ![The result of the Get Code command](images/get_code_result.png "Get code result")
-
 
 The received digest is calculated according to the [RFC4226] specification. This means it has to be processed further to
 obtain the target OTP code as follows:
@@ -150,16 +147,13 @@ code_string = str(code).zfill(digits)
 
 List command returns a TLV encoded list of binary strings (version 1 format):
 
-
 ![Credetials list](images/credentials.png "Credentials")
-
-
 
 ### Delete
 
-| Command   | Cls  | Ins  | P1     | P2   | Description                              |
-|-----------|------|------|--------|------|------------------------------------------|
-| Delete    | 0x00 | 0x02 | 0x00   | 0x00 | Delete a registered OTP credential       |
+| Command | Cls  | Ins  | P1   | P2   | Description                        |
+|---------|------|------|------|------|------------------------------------|
+| Delete  | 0x00 | 0x02 | 0x00 | 0x00 | Delete a registered OTP credential |
 
 #### Input
 
@@ -180,7 +174,8 @@ These can be run against a USB/IP device simulation of Nitrokey 3.
 
 ## Client Application
 
-The Secrets App can be reached through the described protocol over a pynitrokey CLI experimental interface. Excerpt from its help screen follows:
+The Secrets App can be reached through the described protocol over a pynitrokey CLI experimental interface. Excerpt from
+its help screen follows:
 
 ```text
 $ nitropy nk3 secrets
@@ -251,35 +246,34 @@ Options:
 
 ```
 
-
 ## Authentication Requirements
 
+| Command          | Require Touch Button press | Require PIN Authentication | Unlocks PIN-based Encryption Key |
+|------------------|----------------------------|----------------------------|----------------------------------|
+| Select           | No                         | No                         | No                               |
+| Calculate        | Yes*                       | No                         | No                               |
+| Delete           | Yes                        | Yes*                       | No                               |
+| ListCredentials  | No                         | Yes*                       | No                               |
+| Register         | Yes                        | Yes*                       | No                               |
+| Reset            | Yes                        | No                         | No                               |
+| VerifyPin        | No                         | -                          | Yes                              |
+| SetPin           | Yes                        | -                          | No                               |
+| ChangePin        | Yes                        | -                          | No                               |
+| VerifyCode       | Yes*                       | No                         | No                               |
+| SendRemaining    | No                         | No                         | No                               |
+| GetCredential    | Yes*                       | No                         | No                               |
+| CredentialUpdate | Yes                        | Yes*                       | No                               |
 
-| Command         | Require Touch Button press | Require PIN Authentication | Unlocks PIN-based Encryption Key |
-|-----------------|----------------------------|----------------------------|----------------------------------|
-| Select          | No                         | No                         | No                               |
-| Calculate       | Yes*                       | No                         | No                               |
-| Delete          | Yes                        | Yes*                       | No                               |
-| ListCredentials | No                         | Yes*                       | No                               |
-| Register        | Yes                        | Yes*                       | No                               |
-| Reset           | Yes                        | No                         | No                               |
-| VerifyPin       | No                         | -                          | Yes                              |
-| SetPin          | Yes                        | -                          | No                               |
-| ChangePin       | Yes                        | -                          | No                               |
-| VerifyCode      | Yes*                       | No                         | No                               |
-| SendRemaining   | No                         | No                         | No                               |
-| GetCredential   | Yes*                       | No                         | No                               |
-| CredentialUpdate| Yes                        | Yes*                       | No                               |
+Notes:
 
-
-Notes: 
-1. \* If credential was encrypted using PIN-based key, then verification with PIN through `VerifyPin()` is required to get
-access to it, otherwise it will be reported as not found. Similarly, PIN-encrypted credentials will not be listed 
-with `List` command until authenticated. `Delete` command require PIN for Credentials created with PIN-encryption.
+1. \* If credential was encrypted using PIN-based key, then verification with PIN through `VerifyPin()` is required to
+   get
+   access to it, otherwise it will be reported as not found. Similarly, PIN-encrypted credentials will not be listed
+   with `List` command until authenticated. `Delete` command require PIN for Credentials created with PIN-encryption.
 2. Credentials can be configured to be allowed for use only after touch button is pressed.
 3. \* Touch Button press is required for Credentials, which were created with such attribute,
-    but omitted if the PIN was already verified
-   
+   but omitted if the PIN was already verified
+
 ## Further development
 
 Current solution does have a couple of limitations, which could be corrected in the further development:
@@ -289,11 +283,12 @@ Current solution does have a couple of limitations, which could be corrected in 
 
 Both limitations are not affecting the daily usage.
 
-
-
 ## Funding
 
 [<img src="https://nlnet.nl/logo/banner.svg" width="200" alt="Logo NLnet: abstract logo of four people seen from above" hspace="20">](https://nlnet.nl/)
 [<img src="https://nlnet.nl/image/logos/NGI0PET_tag.svg" width="200" alt="Logo NGI Zero: letterlogo shaped like a tag" hspace="20">](https://nlnet.nl/NGI0/)
 
-Changes in this project were funded through the [NGI0 PET](https://nlnet.nl/PET) Fund, a fund established by [NLnet](https://nlnet.nl/) with financial support from the European Commission's [Next Generation Internet programme](https://ngi.eu/), under the aegis of DG Communications Networks, Content and Technology under grant agreement No 825310.
+Changes in this project were funded through the [NGI0 PET](https://nlnet.nl/PET) Fund, a fund established
+by [NLnet](https://nlnet.nl/) with financial support from the European
+Commission's [Next Generation Internet programme](https://ngi.eu/), under the aegis of DG Communications Networks,
+Content and Technology under grant agreement No 825310.
