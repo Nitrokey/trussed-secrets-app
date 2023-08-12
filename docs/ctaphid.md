@@ -167,8 +167,9 @@ None
 
 ## Tests
 
-The tests for communication and responses correctness according to the RFC test vectors are provided in `test_otp.py`
-file.
+The tests for communication and responses correctness according to the RFC test vectors are provided in `test_secrets_app.py`
+file, located in the pynitrokey repository:
+- https://github.com/Nitrokey/pynitrokey/blob/master/pynitrokey/test_secrets_app.py
 
 These can be run against a USB/IP device simulation of Nitrokey 3.
 

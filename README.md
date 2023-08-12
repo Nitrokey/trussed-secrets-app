@@ -99,7 +99,7 @@ e.g. due to being taken by other services, or requiring Administrator
 privileges). A CTAPHID vendor command number was selected to use (`0x70`), thus allowing for a compatible extension of
 any FIDO compliant device.
 
-See [CTAPHID](ctaphid.md) for the further documentation regarding the NLnet funded CTAPHID extension.
+See [CTAPHID](docs/ctaphid.md) for the further documentation regarding the NLnet funded CTAPHID extension.
 
 ### Further work
 
@@ -118,6 +118,8 @@ Tasks and features still discussed to be done:
 - support SHA512 if that would be ever needed.
 
 ### Development
+
+See [design](docs/design.md) document to see decisions taken to make the solution cohesive.
 
 Use `dangerous_disable_encryption` Rust flag to disable data encryption for the debug purposes. E.g.:
 
