@@ -52,8 +52,6 @@ pub enum Command<'l> {
     SendRemaining,
     /// Get Credential data
     GetCredential(GetCredential<'l>),
-    /// Rename Credential
-    RenameCredential(RenameCredential<'l>),
     /// Update Credential
     UpdateCredential(CredentialUpdate<'l>),
     /// Return serial number of the device. Yubikey-compatible command. Used in KeepassXC.
@@ -970,9 +968,6 @@ impl<'l, const C: usize> TryFrom<&'l iso7816::Command<C>> for Command<'l> {
                 }
                 (0x00, oath::Instruction::GetCredential, 0x00, 0x00) => {
                     Self::GetCredential(GetCredential::try_from(data)?)
-                }
-                (0x00, oath::Instruction::RenameCredential, 0x00, 0x00) => {
-                    Self::RenameCredential(RenameCredential::try_from(data)?)
                 }
                 (0x00, oath::Instruction::CredentialUpdate, 0x00, 0x00) => {
                     Self::UpdateCredential(CredentialUpdate::try_from(data)?)
