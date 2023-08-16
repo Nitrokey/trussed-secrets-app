@@ -118,19 +118,19 @@ impl CredentialFlat {
         res.bits()
     }
 
-    fn get_bytes_or_none_if_empty(x: &[u8]) -> Result<Option<ShortData>, ()> {
-        Ok(if !x.is_empty() {
+    fn get_bytes_or_none(xo: Option<&[u8]>) -> Result<Option<ShortData>, ()> {
+        Ok(if let Some(x) = xo {
             Some(ShortData::from_slice(x)?)
         } else {
             None
         })
     }
 
-    fn get_or_empty_slice_if_none(x: &Option<ShortData>) -> &[u8] {
-        if let Some(x) = x {
-            x.as_slice()
+    fn get_ref_or_none(xo: &Option<ShortData>) -> Option<&[u8]> {
+        if let Some(x) = xo {
+            Some(x.as_slice())
         } else {
-            &[]
+            None
         }
     }
 
@@ -163,9 +163,9 @@ impl CredentialFlat {
         };
 
         let p = PasswordSafeData {
-            login: Self::get_or_empty_slice_if_none(&self.login),
-            password: Self::get_or_empty_slice_if_none(&self.password),
-            metadata: Self::get_or_empty_slice_if_none(&self.metadata),
+            login: Self::get_ref_or_none(&self.login),
+            password: Self::get_ref_or_none(&self.password),
+            metadata: Self::get_ref_or_none(&self.metadata),
         };
         if p.non_empty() {
             cred.password_safe = Some(p);
@@ -202,9 +202,9 @@ impl CredentialFlat {
         }
 
         if let Some(pass) = credential.password_safe {
-            cred.login = Self::get_bytes_or_none_if_empty(pass.login)?;
-            cred.password = Self::get_bytes_or_none_if_empty(pass.password)?;
-            cred.metadata = Self::get_bytes_or_none_if_empty(pass.metadata)?;
+            cred.login = Self::get_bytes_or_none(pass.login)?;
+            cred.password = Self::get_bytes_or_none(pass.password)?;
+            cred.metadata = Self::get_bytes_or_none(pass.metadata)?;
         }
 
         Ok(cred)
@@ -219,18 +219,12 @@ impl CredentialFlat {
             self.touch_required = p.touch_required();
         }
         if let Some(pws) = update_req.password_safe {
-            if pws.login.len() > 0 {
-                self.login = Self::get_bytes_or_none_if_empty(pws.login)
-                    .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?;
-            }
-            if pws.password.len() > 0 {
-                self.password = Self::get_bytes_or_none_if_empty(pws.password)
-                    .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?;
-            }
-            if pws.metadata.len() > 0 {
-                self.metadata = Self::get_bytes_or_none_if_empty(pws.metadata)
-                    .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?;
-            }
+            self.login = Self::get_bytes_or_none(pws.login)
+                .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?;
+            self.password = Self::get_bytes_or_none(pws.password)
+                .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?;
+            self.metadata = Self::get_bytes_or_none(pws.metadata)
+                .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?;
         }
         Ok(())
     }

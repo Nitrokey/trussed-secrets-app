@@ -551,15 +551,7 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for CredentialUpdate<'l> {
             ..Default::default()
         };
 
-        // TODO This would be better modeled with Option, than empty slice,
-        //  to allow fields removal by setting the request fields to empty slice.
-        //  Currently only setting is possible. A workaround for now is to
-        //  set the value to remove to " ".
-        let mut pws = PasswordSafeData {
-            login: &[],
-            password: &[],
-            metadata: &[],
-        };
+        let mut pws: PasswordSafeData = Default::default();
         // FIXME remove the need for this additional buffer - requires flexiber modification to
         //  to access the tag byte as u8, without unpacking completely
         let mut buf = [0u8; 255];
@@ -581,13 +573,13 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for CredentialUpdate<'l> {
                     res.new_label = Some(tag_data);
                 }
                 Tag::PwsLogin => {
-                    pws.login = tag_data;
+                    pws.login = Some(tag_data);
                 }
                 Tag::PwsPassword => {
-                    pws.password = tag_data;
+                    pws.password = Some(tag_data);
                 }
                 Tag::PwsMetadata => {
-                    pws.metadata = tag_data;
+                    pws.metadata = Some(tag_data);
                 }
                 _ => {
                     // Unmatched tags should return error
@@ -642,16 +634,16 @@ impl<'l> HmacData<'l> {
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Default)]
 pub struct PasswordSafeData<'l> {
-    pub login: &'l [u8],
-    pub password: &'l [u8],
-    pub metadata: &'l [u8],
+    pub login: Option<&'l [u8]>,
+    pub password: Option<&'l [u8]>,
+    pub metadata: Option<&'l [u8]>,
 }
 
 impl<'l> PasswordSafeData<'l> {
     pub fn non_empty(&self) -> bool {
-        !self.login.is_empty() || !self.password.is_empty() || !self.metadata.is_empty()
+        self.login.is_some() || self.password.is_some() || self.metadata.is_some()
     }
 }
 
@@ -809,11 +801,7 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
         };
 
         let pws_data = {
-            let mut pws = PasswordSafeData {
-                login: &[],
-                password: &[],
-                metadata: &[],
-            };
+            let mut pws: PasswordSafeData = Default::default();
 
             let mut next_decoded: Option<TaggedSlice> = decoder.decode().ok();
             while let Some(next) = next_decoded {
@@ -831,13 +819,13 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
 
                 match tag {
                     Tag::PwsLogin => {
-                        pws.login = tag_data;
+                        pws.login = Some(tag_data);
                     }
                     Tag::PwsPassword => {
-                        pws.password = tag_data;
+                        pws.password = Some(tag_data);
                     }
                     Tag::PwsMetadata => {
-                        pws.metadata = tag_data;
+                        pws.metadata = Some(tag_data);
                     }
                     _ => {
                         // Unmatched tags should return error
