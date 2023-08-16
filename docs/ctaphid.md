@@ -1,19 +1,4 @@
-# Secrets App
-
-For the base of Secrets App the [oath-authenticator] application has been chosen as a good candidate due to being
-written in an extensive way, and offered in the same language as the platform, thus guaranteeing high compatibility and
-maintainability.
-
-It offers HOTP and TOTP implementations ([RFC4226] and [RFC6238] respectively), with SHA1 and SHA256 hashes support. It
-manages to process 320+ bits of the shared key.
-
-The protocol it uses - [YKOATH] - is using [ISO7816-4] commands for communication.
-
-[RFC6238]: https://www.rfc-editor.org/rfc/rfc6238
-
-[oath-authenticator]: https://github.com/trussed-dev/oath-authenticator
-
-[YKOATH]: https://developers.yubico.com/OATH/YKOATH_Protocol.html
+# Secrets App CTAPHID Protocol Details
 
 ## Protocol Description
 
@@ -63,7 +48,7 @@ Presenting graphically different variants for each field (selected commands) :
 
 ## Commands
 
-Let's describe chosen commands in detail:
+Chosen commands description follows:
 
 ### Put
 
@@ -80,6 +65,9 @@ Let's describe chosen commands in detail:
 | Type*          | u8     | OtpKind "bitwiseOr" Hash algorithm. Values are described below. Prefixed to the Key field. |
 | Digits*        | u8     | Digits count. The common values are `6` and `8`. Prefixed to the Key field.                |
 | InitialCounter | u32 BE | Initial value for the HOTP counter, encoded in big endian.                                 |
+| PwsLogin       | Bytes  | Value for the Password Safe entry - login field                                            |
+| PwsPassword    | Bytes  | Value for the Password Safe entry - password field                                         |
+| PwsMetadata    | Bytes  | Value for the Password Safe entry - metadata field                                         |
 
 Fields marked with `*` are concatenated with the `Key` field.
 
@@ -89,12 +77,16 @@ Fields marked with `*` are concatenated with the `Key` field.
 | Key            | 0x73  | \[ OtpKind bitwiseOr HashAlgorithm, digits, shared key \]                                   |
 | Challenge      | 0x74  | The challenge value for the TOTP calculations. 64-bit unsigned integer, big endian encoded. |
 | InitialCounter | 0x7A  | Initial value for the HOTP counter. 32-bit unsigned integer, big endian encoded.            |
+| PwsLogin       | 0x83  | Value for the Password Safe entry - login field                                             |
+| PwsPassword    | 0x84  | Value for the Password Safe entry - password field                                          |
+| PwsMetadata    | 0x85  | Value for the Password Safe entry - metadata field                                          |
 
 | Kind         | Value | Description                                               |
 |--------------|-------|-----------------------------------------------------------|
 | HOTP         | 0x10  | Calculate OTP as HOTP, against the internal counter       |
 | TOTP         | 0x20  | Calculate OTP as TOTP, against the provided challenge     |
 | REVERSE_HOTP | 0x30  | Calculate HOTP code, and compare against the provided one |
+| HMAC         | 0x40  | Calculate HMAC-challenge value                            |
 
 | Algorithm | Value | Description               |
 |-----------|-------|---------------------------|
@@ -160,6 +152,36 @@ List command returns a TLV encoded list of binary strings (version 1 format):
 | Parameters   | Type  | Description                                                     |
 |--------------|-------|-----------------------------------------------------------------|
 | CredentialId | Bytes | The credential name, stored for the later reference and listing |
+
+#### Response
+
+None
+
+### CredentialUpdate
+
+| Command          | Cls  | Ins  | P1   | P2   | Description                  |
+|------------------|------|------|------|------|------------------------------|
+| CredentialUpdate | 0x00 | 0xB7 | 0x00 | 0x00 | Update static password entry |
+
+
+#### Input
+
+| Parameters   | Type  | Description                                                     |
+|--------------|-------|-----------------------------------------------------------------|
+| CredentialId | Bytes | The credential name, stored for the later reference and listing |
+| NewName      | Bytes | The credential new name                                         |
+| PwsLogin     | Bytes | Value for the Password Safe entry - login field                 |
+| PwsPassword  | Bytes | Value for the Password Safe entry - password field              |
+| PwsMetadata  | Bytes | Value for the Password Safe entry - metadata field              |
+
+
+| Tag          | Value | Description                                                     |
+|--------------|-------|-----------------------------------------------------------------|
+| CredentialId | 0x71  | The credential name, stored for the later reference and listing |
+| NewName      | 0x71  | The credential new name. Uses same tag id as the previous field |
+| PwsLogin     | 0x83  | Value for the Password Safe entry - login field                 |
+| PwsPassword  | 0x84  | Value for the Password Safe entry - password field              |
+| PwsMetadata  | 0x85  | Value for the Password Safe entry - metadata field              |
 
 #### Response
 
