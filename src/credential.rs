@@ -118,9 +118,13 @@ impl CredentialFlat {
         res.bits()
     }
 
-    fn get_bytes_or_none(xo: Option<&[u8]>) -> Result<Option<ShortData>, ()> {
+    fn get_bytes_if_not_empty_or_none(xo: Option<&[u8]>) -> Result<Option<ShortData>, ()> {
         Ok(if let Some(x) = xo {
-            Some(ShortData::from_slice(x)?)
+            if !x.is_empty() {
+                Some(ShortData::from_slice(x)?)
+            } else {
+                None
+            }
         } else {
             None
         })
@@ -202,9 +206,9 @@ impl CredentialFlat {
         }
 
         if let Some(pass) = credential.password_safe {
-            cred.login = Self::get_bytes_or_none(pass.login)?;
-            cred.password = Self::get_bytes_or_none(pass.password)?;
-            cred.metadata = Self::get_bytes_or_none(pass.metadata)?;
+            cred.login = Self::get_bytes_if_not_empty_or_none(pass.login)?;
+            cred.password = Self::get_bytes_if_not_empty_or_none(pass.password)?;
+            cred.metadata = Self::get_bytes_if_not_empty_or_none(pass.metadata)?;
         }
 
         Ok(cred)
@@ -219,11 +223,11 @@ impl CredentialFlat {
             self.touch_required = p.touch_required();
         }
         if let Some(pws) = update_req.password_safe {
-            self.login = Self::get_bytes_or_none(pws.login)
+            self.login = Self::get_bytes_if_not_empty_or_none(pws.login)
                 .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?;
-            self.password = Self::get_bytes_or_none(pws.password)
+            self.password = Self::get_bytes_if_not_empty_or_none(pws.password)
                 .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?;
-            self.metadata = Self::get_bytes_or_none(pws.metadata)
+            self.metadata = Self::get_bytes_if_not_empty_or_none(pws.metadata)
                 .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?;
         }
         Ok(())

@@ -817,15 +817,22 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
                 // Tag::Algorithm => {}
                 // Tag::Touch => {}
 
+                fn nonempty_or_err(x: &[u8]) -> Result<Option<&[u8]>, Status> {
+                    if x.is_empty() {
+                        return Err(FAILED_PARSING_ERROR);
+                    }
+                    Ok(Some(x))
+                }
+
                 match tag {
                     Tag::PwsLogin => {
-                        pws.login = Some(tag_data);
+                        pws.login = nonempty_or_err(tag_data)?;
                     }
                     Tag::PwsPassword => {
-                        pws.password = Some(tag_data);
+                        pws.password = nonempty_or_err(tag_data)?;
                     }
                     Tag::PwsMetadata => {
-                        pws.metadata = Some(tag_data);
+                        pws.metadata = nonempty_or_err(tag_data)?;
                     }
                     _ => {
                         // Unmatched tags should return error
