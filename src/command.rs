@@ -941,19 +941,6 @@ impl<'l, const C: usize> TryFrom<&'l iso7816::Command<C>> for Command<'l> {
                     Self::Register(Register::try_from(data)?)
                 }
                 (0x00, oath::Instruction::Reset, 0xde, 0xad) => Self::Reset,
-                #[cfg(feature = "challenge-response-auth")]
-                (0x00, oath::Instruction::SetCode, 0x00, 0x00) => {
-                    // should check this is a TLV(SetPassword, b'')
-                    if data.len() == 2 {
-                        Self::ClearPassword
-                    } else {
-                        Self::SetPassword(SetPassword::try_from(data)?)
-                    }
-                }
-                #[cfg(feature = "challenge-response-auth")]
-                (0x00, oath::Instruction::Validate, 0x00, 0x00) => {
-                    Self::Validate(Validate::try_from(data)?)
-                }
                 (0x00, oath::Instruction::VerifyCode, 0x00, 0x00) => {
                     Self::VerifyCode(VerifyCode::try_from(data)?)
                 }

@@ -41,10 +41,6 @@ pub struct State {
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Persistent {
     pub salt: [u8; 8],
-    /// This is the user's password, passed through PBKDF-HMAC-SHA1.
-    /// It is used for authorization using challenge HMAC-SHA1'ing.
-    #[cfg(feature = "challenge-response-auth")]
-    pub authorization_key: Option<KeyId>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]

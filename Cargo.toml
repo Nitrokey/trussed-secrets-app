@@ -51,9 +51,6 @@ devel-counters = []
 # Allow to use application over CTAPHID interface
 ctaphid = ["ctaphid-dispatch"]
 
-# Enable challenge-response method (only authentication, does not encrypt data)
-challenge-response-auth = []
-
 # Enable oath calculate-all command
 calculate-all = []
 
