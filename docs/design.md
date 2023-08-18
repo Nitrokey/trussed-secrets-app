@@ -23,3 +23,7 @@ malware threats by incorporating physical user presence confirmation for critica
 Other:
 - do not allow to overwrite credentials - always require explicit deletion of the credential with the same name
 - remove YKOATH protocol compatibility, specifically authentication through challenge-response
+
+Privacy concerns:
+- the credential overwrite protection (for the Update and Register commands) can leak information about the presence of a PIN-encrypted credential with the same name. See below ticket for details:
+  - https://github.com/Nitrokey/trussed-secrets-app/issues/101
