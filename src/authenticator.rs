@@ -11,8 +11,8 @@ use core::time::Duration;
 use flexiber::EncodableHeapless;
 use heapless_bytes::Bytes;
 use iso7816::{Data, Status};
+use trussed::types::Location;
 use trussed::types::{KeyId, Message};
-use trussed::types::{Location, ShortData};
 use trussed::{self, client, syscall, try_syscall};
 
 use crate::calculate::hmac_challenge;
@@ -316,7 +316,7 @@ where
             Command::Register(register) => self.register(register),
             Command::Calculate(calculate) => self.calculate(calculate, reply),
             Command::GetCredential(get) => self.get_credential(get, reply),
-            Command::RenameCredential(rename) => self.rename_credential(rename, reply),
+            Command::UpdateCredential(update) => self.update_credential(update, reply),
             #[cfg(feature = "calculate-all")]
             Command::CalculateAll(calculate_all) => self.calculate_all(calculate_all, reply),
             Command::Delete(delete) => self.delete(delete),
@@ -800,9 +800,9 @@ where
         Ok(())
     }
 
-    /// Rename credential
+    /// Update credential
     ///
-    /// Realized by loading FlatCredential object, changing its label,
+    /// Realized by loading FlatCredential object, changing its fields,
     /// writing under the new name and removing the previous file.
     ///
     /// Requires button confirmation before starting.
@@ -810,35 +810,40 @@ where
     /// returns: no data, except for the result code
     /// Errors:
     ///     - OperationBlocked if the new name is occupied already (checked by name hash)
-    ///     - NotFound, if the current credential can't be open (e.g. due to key not available) or deserialized
-    ///     - UnspecifiedNonpersistentExecutionError, if the old file cannot be removed, or serialization error
+    ///     - NotFound, if the current credential can't be open (e.g. due to key not available)
+    ///         or deserialized
+    ///     - UnspecifiedNonpersistentExecutionError, if the old file cannot be removed,
+    ///         or on conversion/serialization error
     ///     - NotEnoughMemory, if new file cannot be written
     ///     - SecurityStatusNotSatisfied, if the encryption key cannot be fetched
-    fn rename_credential<const R: usize>(
+    fn update_credential<const R: usize>(
         &mut self,
-        rename_req: command::RenameCredential<'_>,
+        update_req: command::UpdateCredential<'_>,
         _reply: &mut Data<R>,
     ) -> Result {
         // DESIGN Get operation confirmation from user before proceeding
         self.user_present()?;
 
         // DESIGN check if the target name is occupied already
-        self.err_if_credential_with_label_exists(rename_req.new_label)?;
-        if !self.credential_with_label_exists(rename_req.label)? {
+        if let Some(new_label) = update_req.new_label {
+            self.err_if_credential_with_label_exists(new_label)?;
+        }
+
+        if !self.credential_with_label_exists(update_req.label)? {
             return Err(Status::NotFound);
         }
 
         let credential = {
             let mut c = self
-                .load_credential(rename_req.label)
+                .load_credential(update_req.label)
                 .ok_or(Status::NotFound)?;
-            c.label =
-                ShortData::from_slice(rename_req.new_label).map_err(|_| Status::NotEnoughMemory)?;
+            // Update credential fields with new values, and save
+            c.update_from(update_req)?;
             c
         };
 
         // Serialize the credential (implicitly) and store it
-        let filename = self.filename_for_label(rename_req.new_label);
+        let filename = self.filename_for_label(&credential.label);
         self.state.try_write_file(
             &mut self.trussed,
             filename,
@@ -847,11 +852,13 @@ where
         )?;
 
         // Remove old file name
-        let filename_old = self.filename_for_label(rename_req.label);
-        try_syscall!(self
-            .trussed
-            .remove_file(self.options.location, filename_old))
-        .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?;
+        if update_req.new_label.is_some() {
+            let filename_old = self.filename_for_label(update_req.label);
+            try_syscall!(self
+                .trussed
+                .remove_file(self.options.location, filename_old))
+            .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?;
+        }
         Ok(())
     }
 

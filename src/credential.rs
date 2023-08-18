@@ -6,6 +6,7 @@
 use crate::command;
 use crate::command::{
     CredentialData, EncryptionKeyType, HmacData, OtpCredentialData, PasswordSafeData,
+    UpdateCredential,
 };
 use crate::oath::{Algorithm, Kind};
 use iso7816::Status;
@@ -117,19 +118,20 @@ impl CredentialFlat {
         res.bits()
     }
 
-    fn get_bytes_or_none_if_empty(x: &[u8]) -> Result<Option<ShortData>, ()> {
-        Ok(if !x.is_empty() {
-            Some(ShortData::from_slice(x)?)
-        } else {
-            None
-        })
+    fn get_bytes_if_not_empty_or_none(xo: Option<&[u8]>) -> Result<Option<ShortData>, ()> {
+        if let Some(x) = xo {
+            if !x.is_empty() {
+                return Ok(Some(ShortData::from_slice(x)?));
+            }
+        }
+        Ok(None)
     }
 
-    fn get_or_empty_slice_if_none(x: &Option<ShortData>) -> &[u8] {
-        if let Some(x) = x {
-            x.as_slice()
+    fn get_ref_or_none(xo: &Option<ShortData>) -> Option<&[u8]> {
+        if let Some(x) = xo {
+            Some(x.as_slice())
         } else {
-            &[]
+            None
         }
     }
 
@@ -162,9 +164,9 @@ impl CredentialFlat {
         };
 
         let p = PasswordSafeData {
-            login: Self::get_or_empty_slice_if_none(&self.login),
-            password: Self::get_or_empty_slice_if_none(&self.password),
-            metadata: Self::get_or_empty_slice_if_none(&self.metadata),
+            login: Self::get_ref_or_none(&self.login),
+            password: Self::get_ref_or_none(&self.password),
+            metadata: Self::get_ref_or_none(&self.metadata),
         };
         if p.non_empty() {
             cred.password_safe = Some(p);
@@ -201,11 +203,30 @@ impl CredentialFlat {
         }
 
         if let Some(pass) = credential.password_safe {
-            cred.login = Self::get_bytes_or_none_if_empty(pass.login)?;
-            cred.password = Self::get_bytes_or_none_if_empty(pass.password)?;
-            cred.metadata = Self::get_bytes_or_none_if_empty(pass.metadata)?;
+            cred.login = Self::get_bytes_if_not_empty_or_none(pass.login)?;
+            cred.password = Self::get_bytes_if_not_empty_or_none(pass.password)?;
+            cred.metadata = Self::get_bytes_if_not_empty_or_none(pass.metadata)?;
         }
 
         Ok(cred)
+    }
+
+    /// Update credential fields with new values, and save
+    pub fn update_from(&mut self, update_req: UpdateCredential) -> Result<(), Status> {
+        if let Some(new_label) = update_req.new_label {
+            self.label = ShortData::from_slice(new_label).map_err(|_| Status::NotEnoughMemory)?;
+        }
+        if let Some(p) = update_req.properties {
+            self.touch_required = p.touch_required();
+        }
+        if let Some(pws) = update_req.password_safe {
+            self.login = Self::get_bytes_if_not_empty_or_none(pws.login)
+                .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?;
+            self.password = Self::get_bytes_if_not_empty_or_none(pws.password)
+                .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?;
+            self.metadata = Self::get_bytes_if_not_empty_or_none(pws.metadata)
+                .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?;
+        }
+        Ok(())
     }
 }

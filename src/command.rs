@@ -5,7 +5,7 @@
 
 use block_padding::{Pkcs7, RawPadding};
 use core::convert::{TryFrom, TryInto};
-use flexiber::{SimpleTag, TagLike};
+use flexiber::{Encodable, SimpleTag, TagLike};
 use serde::{Deserialize, Serialize};
 
 use iso7816::command::class::Class;
@@ -52,8 +52,8 @@ pub enum Command<'l> {
     SendRemaining,
     /// Get Credential data
     GetCredential(GetCredential<'l>),
-    /// Rename Credential
-    RenameCredential(RenameCredential<'l>),
+    /// Update Credential
+    UpdateCredential(UpdateCredential<'l>),
     /// Return serial number of the device. Yubikey-compatible command. Used in KeepassXC.
     YkSerial,
     /// Return application's status. Yubikey-compatible command. Used in KeepassXC.
@@ -518,6 +518,86 @@ pub struct Credential<'l> {
     pub password_safe: Option<PasswordSafeData<'l>>,
 }
 
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Default)]
+pub struct UpdateCredential<'l> {
+    pub label: &'l [u8],
+    pub new_label: Option<&'l [u8]>,
+    pub properties: Option<Properties>,
+    pub password_safe: Option<PasswordSafeData<'l>>,
+}
+
+impl<'l, const C: usize> TryFrom<&'l Data<C>> for UpdateCredential<'l> {
+    type Error = Status;
+    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
+        use flexiber::TaggedSlice;
+        let mut decoder = flexiber::Decoder::new(data);
+
+        let first: TaggedSlice = decoder.decode().map_err(|_| FAILED_PARSING_ERROR)?;
+        ensure(
+            first.tag() == (Tag::Name as u8).try_into().unwrap(),
+            FAILED_PARSING_ERROR,
+        )?;
+        let label = first.as_bytes();
+
+        if label.is_empty() {
+            return Err(FAILED_PARSING_ERROR);
+        }
+        // end of obligatory fields parsing
+
+        let mut res = UpdateCredential {
+            label,
+            ..Default::default()
+        };
+
+        let mut pws: PasswordSafeData = Default::default();
+        // FIXME remove the need for this additional buffer - requires flexiber modification to
+        //  to access the tag byte as u8, without unpacking completely
+        let mut buf = [0u8; 255];
+
+        let mut next_decoded: Option<TaggedSlice> = decoder.decode().ok();
+        while let Some(next) = next_decoded {
+            next.encode_to_slice(&mut buf)
+                .map_err(|_| FAILED_PARSING_ERROR)?;
+            let tag = buf[0];
+            let tag = Tag::try_from(tag).map_err(|_| FAILED_PARSING_ERROR)?;
+            let tag_data = next.as_bytes();
+
+            match tag {
+                Tag::Property => {
+                    res.properties = Some(Properties(tag_data[0]));
+                }
+                // new label
+                Tag::Name => {
+                    res.new_label = Some(tag_data);
+                }
+                Tag::PwsLogin => {
+                    pws.login = Some(tag_data);
+                }
+                Tag::PwsPassword => {
+                    pws.password = Some(tag_data);
+                }
+                Tag::PwsMetadata => {
+                    pws.metadata = Some(tag_data);
+                }
+                _ => {
+                    // Unmatched tags should return error
+                    return Err(Status::IncorrectDataParameter);
+                }
+            }
+            next_decoded = decoder.decode().ok();
+        }
+        res.password_safe = {
+            if pws.non_empty() {
+                Some(pws)
+            } else {
+                None
+            }
+        };
+
+        Ok(res)
+    }
+}
+
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum CredentialData<'l> {
     OtpData(OtpCredentialData<'l>),
@@ -552,27 +632,27 @@ impl<'l> HmacData<'l> {
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Default)]
 pub struct PasswordSafeData<'l> {
-    pub login: &'l [u8],
-    pub password: &'l [u8],
-    pub metadata: &'l [u8],
+    pub login: Option<&'l [u8]>,
+    pub password: Option<&'l [u8]>,
+    pub metadata: Option<&'l [u8]>,
 }
 
 impl<'l> PasswordSafeData<'l> {
     pub fn non_empty(&self) -> bool {
-        !self.login.is_empty() || !self.password.is_empty() || !self.metadata.is_empty()
+        self.login.is_some() || self.password.is_some() || self.metadata.is_some()
     }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct Properties(u8);
+pub struct Properties(u8);
 
 impl Properties {
-    fn touch_required(&self) -> bool {
+    pub fn touch_required(&self) -> bool {
         self.0 & (oath::Properties::RequireTouch as u8) != 0
     }
-    fn pin_encrypted(&self) -> bool {
+    pub fn pin_encrypted(&self) -> bool {
         self.0 & (oath::Properties::PINEncrypt as u8) != 0
     }
 }
@@ -719,11 +799,7 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
         };
 
         let pws_data = {
-            let mut pws = PasswordSafeData {
-                login: &[],
-                password: &[],
-                metadata: &[],
-            };
+            let mut pws: PasswordSafeData = Default::default();
 
             let mut next_decoded: Option<TaggedSlice> = decoder.decode().ok();
             while let Some(next) = next_decoded {
@@ -739,15 +815,22 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
                 // Tag::Algorithm => {}
                 // Tag::Touch => {}
 
+                fn nonempty_or_err(x: &[u8]) -> Result<Option<&[u8]>, Status> {
+                    if x.is_empty() {
+                        return Err(FAILED_PARSING_ERROR);
+                    }
+                    Ok(Some(x))
+                }
+
                 match tag {
                     Tag::PwsLogin => {
-                        pws.login = tag_data;
+                        pws.login = nonempty_or_err(tag_data)?;
                     }
                     Tag::PwsPassword => {
-                        pws.password = tag_data;
+                        pws.password = nonempty_or_err(tag_data)?;
                     }
                     Tag::PwsMetadata => {
-                        pws.metadata = tag_data;
+                        pws.metadata = nonempty_or_err(tag_data)?;
                     }
                     _ => {
                         // Unmatched tags should return error
@@ -886,8 +969,8 @@ impl<'l, const C: usize> TryFrom<&'l iso7816::Command<C>> for Command<'l> {
                 (0x00, oath::Instruction::GetCredential, 0x00, 0x00) => {
                     Self::GetCredential(GetCredential::try_from(data)?)
                 }
-                (0x00, oath::Instruction::RenameCredential, 0x00, 0x00) => {
-                    Self::RenameCredential(RenameCredential::try_from(data)?)
+                (0x00, oath::Instruction::UpdateCredential, 0x00, 0x00) => {
+                    Self::UpdateCredential(UpdateCredential::try_from(data)?)
                 }
                 (0x00, oath::Instruction::SendRemaining, 0x00, 0x00) => Self::SendRemaining,
                 _ => return Err(Status::InstructionNotSupportedOrInvalid),
