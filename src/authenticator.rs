@@ -283,7 +283,7 @@ where
             self.state.runtime.previously = None;
         }
 
-        // DESIGN Allow all commands to be called without PIN verification
+        // DESIGN (see design.md): Allow all commands to be called without PIN verification
 
         // Lazy init: make sure hardware key is initialized
         self.init()?;
@@ -315,7 +315,7 @@ where
         };
 
         // Call logout after processing, so the PIN-based KEK would not be kept in the memory
-        // DESIGN -> Per-request authorization
+        // DESIGN (see design.md): -> Per-request authorization
         if self.state.runtime.encryption_key.is_some() {
             // Do not call automatic logout after these commands
             match command {
@@ -384,7 +384,7 @@ where
     }
 
     fn reset(&mut self) -> Result {
-        // DESIGN Reset: always confirm with touch button
+        // DESIGN (see design.md): Reset: always confirm with touch button
         self.user_present()?;
 
         // Run any structured cleanup we have
@@ -598,7 +598,7 @@ where
     }
 
     fn register(&mut self, register: command::Register<'_>) -> Result {
-        // DESIGN Registration: require touch button if set on the credential, but not if the PIN was already checked
+        // DESIGN (see design.md): Registration: require touch button if set on the credential, but not if the PIN was already checked
         if register.credential.touch_required
             && register.credential.encryption_key_type != EncryptionKeyType::PinBased
         {
@@ -794,10 +794,10 @@ where
         update_req: command::UpdateCredential<'_>,
         _reply: &mut Data<R>,
     ) -> Result {
-        // DESIGN Get operation confirmation from user before proceeding
+        // DESIGN (see design.md): Get operation confirmation from user before proceeding
         self.user_present()?;
 
-        // DESIGN check if the target name is occupied already
+        // DESIGN (see design.md): check if the target name is occupied already
         if let Some(new_label) = update_req.new_label {
             self.err_if_credential_with_label_exists(new_label)?;
         }
@@ -852,7 +852,7 @@ where
     }
 
     fn require_touch_if_needed(&mut self, credential: &CredentialFlat) -> Result<()> {
-        // DESIGN Daily use: require touch button if set on the credential, but not if the PIN was already checked
+        // DESIGN (see design.md): Daily use: require touch button if set on the credential, but not if the PIN was already checked
         // Safety: encryption_key_type should be set for credential during loading in load_credential
         if credential.touch_required
             && credential.encryption_key_type.unwrap() != EncryptionKeyType::PinBased
@@ -1159,7 +1159,7 @@ where
 
         self._extension_logout()?;
 
-        // DESIGN Always ask for touch button confirmation before verifying PIN, to prevent
+        // DESIGN (see design.md): Always ask for touch button confirmation before verifying PIN, to prevent
         // non-intentional attempt counter use up
         self.user_present()?;
 
@@ -1179,7 +1179,7 @@ where
         if self._extension_is_pin_set()? {
             return Err(Status::SecurityStatusNotSatisfied);
         }
-        // DESIGN Set PIN: always confirm with touch button
+        // DESIGN (see design.md): Set PIN: always confirm with touch button
         self.user_present()?;
 
         let command::SetPin { password } = set_pin;
@@ -1198,7 +1198,7 @@ where
         if !self._extension_is_pin_set()? {
             return Err(Status::SecurityStatusNotSatisfied);
         }
-        // DESIGN Change PIN: always confirm with touch button
+        // DESIGN (see design.md): Change PIN: always confirm with touch button
         self.user_present()?;
 
         let command::ChangePin {

@@ -30,10 +30,12 @@ Secrets App supports the following features:
 - Touch-button protected use per credential.
 
 The pynitrokey library can be used to communicate with this application over CTAPHID, and nitropy provides the CLI using
-it.
+it. See [ctaphid.md](docs/ctaphid.md) for the details.
 
 CCID transport is also available, and while not supported in the mentioned library yet, it can be potentially used by
 the protocol-compatible applications, like the mentioned KeepassXC.
+
+See [design.md](docs/design.md) for the UX design choices.
 
 [RFC4226]: https://www.rfc-editor.org/rfc/rfc4226
 
@@ -99,7 +101,7 @@ e.g. due to being taken by other services, or requiring Administrator
 privileges). A CTAPHID vendor command number was selected to use (`0x70`), thus allowing for a compatible extension of
 any FIDO compliant device.
 
-See [CTAPHID](ctaphid.md) for the further documentation regarding the NLnet funded CTAPHID extension.
+See [CTAPHID](docs/ctaphid.md) for the further documentation regarding the NLnet funded CTAPHID extension.
 
 ### Further work
 
@@ -118,6 +120,8 @@ Tasks and features still discussed to be done:
 - support SHA512 if that would be ever needed.
 
 ### Development
+
+See [design](docs/design.md) document to see decisions taken to make the solution cohesive.
 
 Use `dangerous_disable_encryption` Rust flag to disable data encryption for the debug purposes. E.g.:
 
