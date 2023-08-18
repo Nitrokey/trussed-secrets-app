@@ -818,7 +818,7 @@ where
     ///     - SecurityStatusNotSatisfied, if the encryption key cannot be fetched
     fn update_credential<const R: usize>(
         &mut self,
-        update_req: command::CredentialUpdate<'_>,
+        update_req: command::UpdateCredential<'_>,
         _reply: &mut Data<R>,
     ) -> Result {
         // DESIGN Get operation confirmation from user before proceeding

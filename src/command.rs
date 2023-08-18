@@ -53,7 +53,7 @@ pub enum Command<'l> {
     /// Get Credential data
     GetCredential(GetCredential<'l>),
     /// Update Credential
-    UpdateCredential(CredentialUpdate<'l>),
+    UpdateCredential(UpdateCredential<'l>),
     /// Return serial number of the device. Yubikey-compatible command. Used in KeepassXC.
     YkSerial,
     /// Return application's status. Yubikey-compatible command. Used in KeepassXC.
@@ -519,14 +519,14 @@ pub struct Credential<'l> {
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Default)]
-pub struct CredentialUpdate<'l> {
+pub struct UpdateCredential<'l> {
     pub label: &'l [u8],
     pub new_label: Option<&'l [u8]>,
     pub properties: Option<Properties>,
     pub password_safe: Option<PasswordSafeData<'l>>,
 }
 
-impl<'l, const C: usize> TryFrom<&'l Data<C>> for CredentialUpdate<'l> {
+impl<'l, const C: usize> TryFrom<&'l Data<C>> for UpdateCredential<'l> {
     type Error = Status;
     fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
         use flexiber::TaggedSlice;
@@ -544,7 +544,7 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for CredentialUpdate<'l> {
         }
         // end of obligatory fields parsing
 
-        let mut res = CredentialUpdate {
+        let mut res = UpdateCredential {
             label,
             ..Default::default()
         };
@@ -969,8 +969,8 @@ impl<'l, const C: usize> TryFrom<&'l iso7816::Command<C>> for Command<'l> {
                 (0x00, oath::Instruction::GetCredential, 0x00, 0x00) => {
                     Self::GetCredential(GetCredential::try_from(data)?)
                 }
-                (0x00, oath::Instruction::CredentialUpdate, 0x00, 0x00) => {
-                    Self::UpdateCredential(CredentialUpdate::try_from(data)?)
+                (0x00, oath::Instruction::UpdateCredential, 0x00, 0x00) => {
+                    Self::UpdateCredential(UpdateCredential::try_from(data)?)
                 }
                 (0x00, oath::Instruction::SendRemaining, 0x00, 0x00) => Self::SendRemaining,
                 _ => return Err(Status::InstructionNotSupportedOrInvalid),

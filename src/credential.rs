@@ -5,8 +5,8 @@
 
 use crate::command;
 use crate::command::{
-    CredentialData, CredentialUpdate, EncryptionKeyType, HmacData, OtpCredentialData,
-    PasswordSafeData,
+    CredentialData, EncryptionKeyType, HmacData, OtpCredentialData, PasswordSafeData,
+    UpdateCredential,
 };
 use crate::oath::{Algorithm, Kind};
 use iso7816::Status;
@@ -212,7 +212,7 @@ impl CredentialFlat {
     }
 
     /// Update credential fields with new values, and save
-    pub fn update_from(&mut self, update_req: CredentialUpdate) -> Result<(), Status> {
+    pub fn update_from(&mut self, update_req: UpdateCredential) -> Result<(), Status> {
         if let Some(new_label) = update_req.new_label {
             self.label = ShortData::from_slice(new_label).map_err(|_| Status::NotEnoughMemory)?;
         }
