@@ -199,20 +199,6 @@ impl AnswerToSelect {
             serial: self.serial,
         }
     }
-
-    /// This challenge is only added when a password is set on the device.
-    ///
-    /// It is rotated each time SELECT is called.
-    #[cfg(feature = "challenge-response-auth")]
-    fn with_challenge(self, challenge: [u8; 8]) -> ChallengingAnswerToSelect {
-        ChallengingAnswerToSelect {
-            version: self.version,
-            salt: self.salt,
-            challenge,
-            // algorithm: oath::Algorithm::Sha1  // TODO set proper algo
-            algorithm: [0x01], // TODO set proper algo
-        }
-    }
 }
 
 impl<T> Authenticator<T>
@@ -250,13 +236,6 @@ where
         command: &iso7816::Command<C>,
         reply: &mut Data<R>,
     ) -> Result {
-        #[cfg(feature = "challenge-response-auth")]
-        let no_authorization_needed_cha_resp = self
-            .state
-            .with_persistent(&mut self.trussed, |_, state| !state.password_set());
-
-        // TODO: abstract out this idea to make it usable for all the PIV security indicators
-
         let client_authorized_before = self.state.runtime.client_authorized;
         self.state.runtime.client_newly_authorized = false;
 
@@ -321,12 +300,6 @@ where
             Command::CalculateAll(calculate_all) => self.calculate_all(calculate_all, reply),
             Command::Delete(delete) => self.delete(delete),
             Command::Reset => self.reset(),
-            #[cfg(feature = "challenge-response-auth")]
-            Command::Validate(validate) => self.validate(validate, reply),
-            #[cfg(feature = "challenge-response-auth")]
-            Command::SetPassword(set_password) => self.set_password(set_password),
-            #[cfg(feature = "challenge-response-auth")]
-            Command::ClearPassword => self.clear_password(),
             Command::VerifyCode(verify_code) => self.verify_code(verify_code, reply),
 
             Command::VerifyPin(vpin) => self.verify_pin(vpin, reply),
@@ -939,208 +912,6 @@ where
         reply.push(5).unwrap();
         reply.push(credential.digits).unwrap();
         reply.extend_from_slice(&truncated_digest).unwrap();
-        Ok(())
-    }
-
-    #[cfg(feature = "challenge-response-auth")]
-    fn validate<const R: usize>(
-        &mut self,
-        validate: command::Validate<'_>,
-        reply: &mut Data<R>,
-    ) -> Result {
-        let command::Validate {
-            response,
-            challenge,
-        } = validate;
-
-        if let Some(key) = self
-            .state
-            .with_persistent(&mut self.trussed, |_, state| state.authorization_key)
-        {
-            debug_now!("key set: {:?}", key);
-
-            // 1. verify what the client sent (rotating challenge)
-            let verification = try_syscall!(self
-                .trussed
-                .sign_hmacsha1(key, &self.state.runtime.challenge))
-            .map_err(|_| Status::NotEnoughMemory)?
-            .signature;
-
-            self.state.runtime.challenge = try_syscall!(self.trussed.random_bytes(8))
-                .map_err(|_| Status::NotEnoughMemory)?
-                .bytes
-                .as_ref()
-                .try_into()
-                .map_err(|_| Status::NotEnoughMemory)?;
-
-            if verification != response {
-                return Err(Status::IncorrectDataParameter);
-            }
-
-            self.state.runtime.client_newly_authorized = true;
-
-            // 2. calculate our response to their challenge
-            let response = try_syscall!(self.trussed.sign_hmacsha1(key, challenge))
-                .map_err(|_| Status::NotEnoughMemory)?
-                .signature;
-
-            reply.push(0x75).ok();
-            reply.push(20).ok();
-            reply.extend_from_slice(&response).ok();
-            debug_now!(
-                "validated client! client_newly_authorized = {}",
-                self.state.runtime.client_newly_authorized
-            );
-            Ok(())
-        } else {
-            Err(Status::ConditionsOfUseNotSatisfied)
-        }
-
-        // APDU: 00 A3 00 00 20 (AUTHENTICATE)
-        //       75 14
-        //             8C E0 33 83 E6 A9 0D 27 8B E7 D2 EF 9E 3B 1F DB F4 5E 91 35
-        //       74 08
-        //             AF C9 BA 64 22 6D F0 78
-        // SW: 75 14
-        //             87 BE EB AB 20 F4 C2 FA 24 EA 08 AB D3 4D C1 5B F0 51 DC 85
-        //     90 00
-        //
-
-        //  response: &'l [u8; 20],
-        //  challenge: &'l [u8; 8],
-    }
-
-    #[cfg(feature = "challenge-response-auth")]
-    fn clear_password(&mut self) -> Result {
-        self.user_present()?;
-
-        if !self.state.runtime.client_authorized {
-            return Err(Status::ConditionsOfUseNotSatisfied);
-        }
-        debug_now!("clearing password/key");
-        if let Some(key) = self
-            .state
-            .try_with_persistent_mut(&mut self.trussed, |_, state| {
-                let existing_key = state.authorization_key;
-                state.authorization_key = None;
-                Ok(existing_key)
-            })
-            .map_err(|_| Status::NotEnoughMemory)?
-        {
-            syscall!(self.trussed.delete(key));
-        }
-        Ok(())
-    }
-
-    #[cfg(feature = "challenge-response-auth")]
-    fn set_password(&mut self, set_password: command::SetPassword<'_>) -> Result {
-        self.user_present()?;
-
-        // when there is no password set:
-        // APDU: 00 A4 04 00 07 (SELECT)
-        //                      A0 00 00 05 27 21 01
-        // SW: 79 03
-        //           01 00 00
-        //     71 08
-        //           26 9F 14 54 3A 0E C7 AC
-        //     90 00
-        //
-        // APDU: 00 03 00 00 33 (SET PASSWORD)
-        //       73 11
-        //             21 83 93 58 A6 E1 A1 F6 AB 13 46 F6 5E 56 6F 26 8A
-        //       74 08
-        //             7D CB 79 D5 74 AA 68 6D
-        //       75 14
-        //             73 CA E7 96 6F 32 A8 49 9E B0 F9 D6 D0 3E AA 06 23 59 C6 F2
-        // SW: 90 00
-
-        // when there is a password previously set:
-        //
-        // APDU: 00 A4 04 00 07 (SELECT)
-        //                      A0 00 00 05 27 21 01
-        // SW: 79 03
-        //           01 00 00
-        //     71 08
-        //           26 9F 14 54 3A 0E C7 AC
-        //     74 08 (SALT, signals password is set)
-        //           13 FB E9 67 DF 91 BB 89
-        //     7B 01 (ALGORITHM, not sure what for)
-        //           21
-        //     90 00
-        //
-        // APDU: 00 A3 00 00 20 (AUTHENTICATE)
-        //       75 14
-        //             8C E0 33 83 E6 A9 0D 27 8B E7 D2 EF 9E 3B 1F DB F4 5E 91 35
-        //       74 08
-        //             AF C9 BA 64 22 6D F0 78
-        // SW: 75 14
-        //             87 BE EB AB 20 F4 C2 FA 24 EA 08 AB D3 4D C1 5B F0 51 DC 85
-        //     90 00
-        //
-        // APDU: 00 03 00 00 33 (SET PASSWORD)
-        //       73 11
-        //             21 83 93 58 A6 E1 A1 F6 AB 13 46 F6 5E 56 6F 26 8A
-        //       74 08
-        //             08 7A 1C 76 17 12 C7 9D
-        //       75 14
-        //             4F B0 29 1A 0E FC 88 46 FA 30 FF A4 C7 1E 51 A5 50 79 9A B8
-        // SW: 90 00
-
-        info_now!("entering set password");
-        if !self.state.runtime.client_authorized {
-            return Err(Status::ConditionsOfUseNotSatisfied);
-        }
-
-        let command::SetPassword {
-            kind,
-            algorithm,
-            key,
-            challenge,
-            response,
-        } = set_password;
-
-        info_now!("just checking");
-        if kind != oath::Kind::Totp || algorithm != oath::Algorithm::Sha1 {
-            return Err(Status::InstructionNotSupportedOrInvalid);
-        }
-
-        info_now!("injecting the key");
-        let tmp_key = try_syscall!(self
-            .trussed
-            .unsafe_inject_shared_key(key, Location::Volatile,))
-        .map_err(|_| Status::NotEnoughMemory)?
-        .key;
-
-        let verification = syscall!(self.trussed.sign_hmacsha1(tmp_key, challenge)).signature;
-        syscall!(self.trussed.delete(tmp_key));
-
-        // not really sure why this is all sent along, I guess some kind of fear of bitrot en-route?
-        if verification != response {
-            return Err(Status::IncorrectDataParameter);
-        }
-
-        // all-right, we have a new password to set
-        let key = try_syscall!(self
-            .trussed
-            .unsafe_inject_shared_key(key, self.options.location))
-        .map_err(|_| Status::NotEnoughMemory)?
-        .key;
-
-        debug_now!("storing password/key");
-        self.state
-            .try_with_persistent_mut(&mut self.trussed, |_, state| {
-                state.authorization_key = Some(key);
-                Ok(())
-            })
-            .map_err(|_| Status::NotEnoughMemory)?;
-
-        //  struct SetPassword<'l> {
-        //      kind: oath::Kind,
-        //      algorithm: oath::Algorithm,
-        //      key: &'l [u8],
-        //      challenge: &'l [u8],
-        //      response: &'l [u8],
-        // }
         Ok(())
     }
 
