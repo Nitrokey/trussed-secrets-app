@@ -20,3 +20,6 @@ malware threats by incorporating physical user presence confirmation for critica
 | Secrets App Next (TBD) | (no changes)                                                                                                                                                                                                                      |
 
 
+Other:
+- do not allow to overwrite credentials - always require explicit deletion of the credential with the same name
+- remove YKOATH protocol compatibility, specifically authentication through challenge-response

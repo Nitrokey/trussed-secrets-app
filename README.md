@@ -30,10 +30,12 @@ Secrets App supports the following features:
 - Touch-button protected use per credential.
 
 The pynitrokey library can be used to communicate with this application over CTAPHID, and nitropy provides the CLI using
-it.
+it. See [ctaphid.md](docs/ctaphid.md) for the details.
 
 CCID transport is also available, and while not supported in the mentioned library yet, it can be potentially used by
 the protocol-compatible applications, like the mentioned KeepassXC.
+
+See [design.md](docs/design.md) for the UX design choices.
 
 [RFC4226]: https://www.rfc-editor.org/rfc/rfc4226
 
