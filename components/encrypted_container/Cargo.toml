@@ -19,5 +19,4 @@ cbor-smol = "0.4"
 delog = "0.1.6"
 
 [features]
-# Do not run the actual encryption of the credentials.
-no-encrypted-credentials = []
+# Use "dangerous_disable_encryption" config switch to disable the actual encryption, and store data instead in plaintext for debug purposes.

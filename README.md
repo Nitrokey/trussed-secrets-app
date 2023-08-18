@@ -7,9 +7,12 @@ SPDX-License-Identifier: CC0-1.0
 
 A Trussed app to manage OTP and Password Safe features of Nitrokey 3.
 
-Based on an implementation of reverse-engineered specification of Yubico's [OATH application][yubico-oath].
+Based on [oath-authenticator][], an implementation of
+reverse-engineered specification of Yubico's [OATH application][yubico-oath].
 
 [trussed]: https://trussed.dev
+
+[oath-authenticator]: https://github.com/trussed-dev/oath-authenticator
 
 [yubico-oath]: https://developers.yubico.com/OATH/YKOATH_Protocol.html
 
@@ -17,10 +20,14 @@ Based on an implementation of reverse-engineered specification of Yubico's [OATH
 
 Secrets App supports the following features:
 
-- HOTP implementation - [RFC4226],
-- TOTP implementation - [RFC6238],
-- Reverse HOTP implementation - [the original client][hotp-verif].
-- Yubikey's HMAC-SHA1 challenge for KeepassXC - [KeepassXC documentation][keepass-docs], [setup tutorial][hmac-tutorial].
+- HOTP implementation - [RFC4226];
+- TOTP implementation - [RFC6238];
+- Reverse HOTP implementation - [the original client][hotp-verif];
+- Yubikey's HMAC-SHA1 challenge for KeepassXC - [KeepassXC documentation][keepass-docs], [setup tutorial][hmac-tutorial];
+- Password Safe;
+- A PIN with attempts counter;
+- PIN-based encryption per credential;
+- Touch-button protected use per credential.
 
 The pynitrokey library can be used to communicate with this application over CTAPHID, and nitropy provides the CLI using
 it.
@@ -109,6 +116,14 @@ Tasks and features still discussed to be done:
   original protocol, however this should be easily extended by introducing a new TLV tag, which would mark the wider
   value;
 - support SHA512 if that would be ever needed.
+
+### Development
+
+Use `dangerous_disable_encryption` Rust flag to disable data encryption for the debug purposes. E.g.:
+
+```text
+$ env RUSTFLAGS="--cfg dangerous_disable_encryption" cargo test
+```
 
 ### License
 

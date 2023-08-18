@@ -38,9 +38,22 @@ fn parse(data: &[u8]) -> Vec<&[u8]> {
     res
 }
 
+use trussed::types::Location;
+mod virt;
+
 fuzz_target!(|data: &[u8]| {
-    trussed::virt::with_ram_client("secrets", move |client| {
-        let mut secrets = secrets_app::Authenticator::<_>::new(client);
+
+    virt::with_ram_client("secrets", move |client| {
+
+        let options = secrets_app::Options::new(
+            Location::Internal,
+            0,
+            1,
+            [0x42, 0x42, 0x42, 0x42],
+            u16::MAX,
+        );
+        let mut secrets = secrets_app::Authenticator::new(client, options);
+
         let mut response = heapless::Vec::<u8, { 3 * 1024 }>::new();
 
         let commands = parse(data);

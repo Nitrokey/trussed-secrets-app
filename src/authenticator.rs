@@ -75,7 +75,7 @@ impl Options {
 pub struct Authenticator<T> {
     options: Options,
     state: State,
-    trussed: T,
+    pub(crate) trussed: T,
 }
 
 use crate::Result;
@@ -93,7 +93,7 @@ impl Default for OathVersion {
         // TODO: set this up automatically during the build from the project version
         OathVersion {
             major: 4,
-            minor: 11,
+            minor: 13,
             patch: 0,
         }
     }
@@ -295,6 +295,7 @@ where
             Command::Register(register) => self.register(register),
             Command::Calculate(calculate) => self.calculate(calculate, reply),
             Command::GetCredential(get) => self.get_credential(get, reply),
+            Command::UpdateCredential(update) => self.update_credential(update, reply),
             #[cfg(feature = "calculate-all")]
             Command::CalculateAll(calculate_all) => self.calculate_all(calculate_all, reply),
             Command::Delete(delete) => self.delete(delete),
@@ -407,6 +408,7 @@ where
     }
 
     fn delete(&mut self, delete: command::Delete<'_>) -> Result {
+        self.user_present()?;
         debug_now!("{:?}", delete);
         // It seems tooling first lists all credentials, so the case of
         // delete being called on a non-existing label hardly occurs.
@@ -421,9 +423,9 @@ where
 
         let label = &delete.label;
         if let Some(_credential) = self.load_credential(label) {
-            let _filename = self.filename_for_label(label);
+            let filename = self.filename_for_label(label);
             let _deletion_result =
-                try_syscall!(self.trussed.remove_file(self.options.location, _filename));
+                try_syscall!(self.trussed.remove_file(self.options.location, filename));
             debug_now!(
                 "Delete credential with filename {}, result: {:?}",
                 &self.filename_for_label(label),
@@ -468,6 +470,21 @@ where
         Ok(())
     }
 
+    fn load_credential_from_message(
+        &mut self,
+        encrypted_data: Option<Message>,
+    ) -> Option<CredentialFlat> {
+        let (res, k) = self
+            .state
+            .decrypt_content::<_, CredentialFlat>(&mut self.trussed, encrypted_data?);
+        if let Ok(mut cred) = res {
+            cred.encryption_key_type = k;
+            Some(cred)
+        } else {
+            None
+        }
+    }
+
     /// The YK5 can store a Grande Totale of 32 OATH credentials.
     fn list_credentials<const R: usize>(
         &mut self,
@@ -510,10 +527,11 @@ where
                 }
             };
 
-            let maybe_credential: Option<CredentialFlat> = match file {
-                None => None,
-                Some(c) => self.state.decrypt_content(&mut self.trussed, c).ok(),
-            };
+            let maybe_credential: Option<CredentialFlat> =
+                self.load_credential_from_message(file).or_else(|| {
+                    warn_now!("Failed decryption for file {:?}", file_index);
+                    None
+                });
             maybe_credential
         };
 
@@ -525,6 +543,10 @@ where
                 let res =
                     Self::try_to_serialize_credential_for_list(&credential, reply, request_data);
                 if res.is_err() {
+                    warn_now!(
+                        "Aborted serialization for credential {:?}",
+                        credential.label
+                    );
                     // Revert reply vector to the last good size, removing debris from the failed
                     // serialization
                     reply.truncate(current_reply_bytes_count);
@@ -540,12 +562,16 @@ where
             ));
 
             // check if there's more
-            maybe_credential = match syscall!(self.trussed.read_dir_files_next()).data {
+            let data = syscall!(self.trussed.read_dir_files_next()).data;
+            if data.is_none() {
                 // no more files, break the loop and return
-                None => break,
-                // we do not have the right key, continue
-                Some(c) => self.state.decrypt_content(&mut self.trussed, c).ok(),
-            };
+                break;
+            }
+            maybe_credential = self.load_credential_from_message(data).or_else(|| {
+                // we might not have the right key, continue
+                warn_now!("Failed decryption for file {:?}", file_index);
+                None
+            });
         }
 
         // ran to completion
@@ -586,14 +612,8 @@ where
 
         // info_now!("recv {:?}", &register);
 
-        // Allow to overwrite existing credentials by default
-        // 0. ykman does not call delete before register, so we need to speculatively
-        // delete the credential (the credential file would be replaced, but we need
-        // to delete the secret key).
-        self.delete(command::Delete {
-            label: register.credential.label,
-        })
-        .ok();
+        // Explicitly disallow to overwrite existing credentials by default
+        self.err_if_credential_with_label_exists(register.credential.label)?;
 
         // 1. Replace secret in credential with handle
         let credential =
@@ -624,6 +644,18 @@ where
         }
 
         Ok(())
+    }
+
+    fn credential_with_label_exists(&mut self, label: &[u8]) -> Result<bool> {
+        let filename = self.filename_for_label(label);
+        self.state.file_exists(&mut self.trussed, filename)
+    }
+
+    fn err_if_credential_with_label_exists(&mut self, label: &[u8]) -> Result {
+        match self.credential_with_label_exists(label)? {
+            false => Ok(()),
+            true => Err(Status::OperationBlocked),
+        }
     }
 
     fn filename_for_label(&mut self, label: &[u8]) -> trussed::types::PathBuf {
@@ -737,6 +769,68 @@ where
                 // Finish early due to the usbd-ctaphid message size limit
                 return Err(1);
             }
+        }
+        Ok(())
+    }
+
+    /// Update credential
+    ///
+    /// Realized by loading FlatCredential object, changing its fields,
+    /// writing under the new name and removing the previous file.
+    ///
+    /// Requires button confirmation before starting.
+    ///
+    /// returns: no data, except for the result code
+    /// Errors:
+    ///     - OperationBlocked if the new name is occupied already (checked by name hash)
+    ///     - NotFound, if the current credential can't be open (e.g. due to key not available)
+    ///         or deserialized
+    ///     - UnspecifiedNonpersistentExecutionError, if the old file cannot be removed,
+    ///         or on conversion/serialization error
+    ///     - NotEnoughMemory, if new file cannot be written
+    ///     - SecurityStatusNotSatisfied, if the encryption key cannot be fetched
+    fn update_credential<const R: usize>(
+        &mut self,
+        update_req: command::UpdateCredential<'_>,
+        _reply: &mut Data<R>,
+    ) -> Result {
+        // DESIGN Get operation confirmation from user before proceeding
+        self.user_present()?;
+
+        // DESIGN check if the target name is occupied already
+        if let Some(new_label) = update_req.new_label {
+            self.err_if_credential_with_label_exists(new_label)?;
+        }
+
+        if !self.credential_with_label_exists(update_req.label)? {
+            return Err(Status::NotFound);
+        }
+
+        let credential = {
+            let mut c = self
+                .load_credential(update_req.label)
+                .ok_or(Status::NotFound)?;
+            // Update credential fields with new values, and save
+            c.update_from(update_req)?;
+            c
+        };
+
+        // Serialize the credential (implicitly) and store it
+        let filename = self.filename_for_label(&credential.label);
+        self.state.try_write_file(
+            &mut self.trussed,
+            filename,
+            &credential,
+            credential.encryption_key_type,
+        )?;
+
+        // Remove old file name
+        if update_req.new_label.is_some() {
+            let filename_old = self.filename_for_label(update_req.label);
+            try_syscall!(self
+                .trussed
+                .remove_file(self.options.location, filename_old))
+            .map_err(|_| Status::UnspecifiedNonpersistentExecutionError)?;
         }
         Ok(())
     }

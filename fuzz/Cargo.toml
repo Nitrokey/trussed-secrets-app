@@ -19,17 +19,19 @@ iso7816 = "0.1"
 serde = { version = "1", default-features = false }
 trussed = { version = "0.1.0", features = ["virt", "verbose-tests"] }
 ctaphid-dispatch = { version = "0.1", optional = true }
-usbd-ctaphid = { git = "https://github.com/Nitrokey/nitrokey-3-firmware", optional = true }
 clap = { version = "3.0.0", features = ["cargo", "derive"] }
 clap-num = "1.0.0"
 pretty_env_logger = "0.4.0"
+
+# extension
+trussed-auth = "0.2.2"
 
 
 [dependencies.secrets-app]
 path = ".."
 
 [features]
-default = ["ctaphid-dispatch", "usbd-ctaphid", "apdu-dispatch"]
+default = ["ctaphid-dispatch", "apdu-dispatch"]
 
 
 # Prevent this from interfering with workspaces
@@ -53,5 +55,6 @@ doc = false
 
 
 [patch.crates-io]
-trussed = { git = "https://github.com/trussed-dev/trussed", branch = "main" }
-flexiber = { git = "https://github.com/Nitrokey/flexiber", rev = "0.1.1.nitrokey" }
+flexiber = { git = "https://github.com/Nitrokey/flexiber", tag = "0.1.1.nitrokey" }
+trussed = { git = "https://github.com/Nitrokey/trussed", tag = "v0.1.0-nitrokey.11" }
+trussed-auth = { git = "https://github.com/trussed-dev/trussed-auth/", tag = "v0.2.2" }

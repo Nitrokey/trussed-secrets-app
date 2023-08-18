@@ -7,10 +7,10 @@ use crate::{Authenticator, CTAPHID_MESSAGE_SIZE_LIMIT};
 use ctaphid_dispatch::app::{self, Command as HidCommand, Message};
 use ctaphid_dispatch::command::VendorCommand;
 use iso7816::Status;
-use trussed::client;
+use trussed::{client, interrupt::InterruptFlag};
 pub const OTP_CCID: VendorCommand = VendorCommand::H70;
 
-impl<T> app::App for Authenticator<T>
+impl<T> app::App<'static> for Authenticator<T>
 where
     T: trussed::Client
         + client::HmacSha1
@@ -62,5 +62,8 @@ where
             }
         }
         Ok(())
+    }
+    fn interrupt(&self) -> Option<&'static InterruptFlag> {
+        self.trussed.interrupt()
     }
 }

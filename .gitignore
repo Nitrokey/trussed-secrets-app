@@ -1,3 +1,7 @@
 /target
 Cargo.lock
 trussed-state.bin
+/fuzz/target
+/fuzz/corpus
+/fuzz/artifacts
+.idea

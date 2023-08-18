@@ -1,6 +1,6 @@
 [package]
 name = "secrets-app"
-version = "0.11.0"
+version = "0.13.0"
 authors = ["Nicolas Stalder <n@stalder.io>", "Szczepan Zalega <szczepan@nitrokey.com>"]
 repository = "https://github.com/Nitrokey/trussed-secrets-app/"
 edition = "2021"
@@ -25,19 +25,20 @@ block-padding = "0.3.3"
 bitflags = "2.3.1"
 
 # extension
-trussed-auth = "0.2.0"
+trussed-auth = "0.2.2"
 
 [dev-dependencies]
 log = { version = "0.4.14", default-features = false }
 pretty_env_logger = "0.4.0"
 
 # below are for running the usbip example
-trussed-usbip = { git = "https://github.com/trussed-dev/pc-usbip-runner", default-features = false, features = ["ctaphid"], rev = "f3a680ca4c9a1411838ae0774f1713f79d4c2979" }
+trussed-usbip = { version = "0.0.1", features = ["ctaphid"], default-features = false }
 usbd-ctaphid = "0.1"
 clap = { version = "3.0.0", features = ["cargo", "derive"] }
 clap-num = "1.0.0"
 delog = { version = "0.1.6", features = ["std-log"] }
-fido-authenticator = { version = "0.1", features = ["dispatch", "log-all"] }
+fido-authenticator = { version = "0.1.1", features = ["dispatch", "log-all"]}
+
 admin-app = { version = "0.1", features = ["log-all"] }
 
 [features]
@@ -71,6 +72,17 @@ required-features = ["ctaphid", "devel"]
 
 [patch.crates-io]
 flexiber = { git = "https://github.com/Nitrokey/flexiber", tag = "0.1.1.nitrokey" }
-trussed = { git = "https://github.com/Nitrokey/trussed", rev = "52da9bb" }
-littlefs2 = { git =  "https://github.com/Nitrokey/littlefs2", tag = "v0.3.2-nitrokey-2" }
-trussed-auth = { git = "https://github.com/trussed-dev/trussed-auth/", rev = "6beabd125ea57e87bf642e18278fcc2ba224c50c" }
+
+# forked
+admin-app = { git = "https://github.com/Nitrokey/admin-app", tag = "v0.1.0-nitrokey.3" }
+ctap-types = { git = "https://github.com/Nitrokey/ctap-types", tag = "v0.1.2-nitrokey.1" }
+fido-authenticator = { git = "https://github.com/Nitrokey/fido-authenticator.git", tag = "v0.1.1-nitrokey.5" }
+trussed = { git = "https://github.com/Nitrokey/trussed", tag = "v0.1.0-nitrokey.12" }
+
+# unreleased upstream changes
+usbd-ctaphid = { git = "https://github.com/Nitrokey/usbd-ctaphid", tag = "v0.1.0-nitrokey.1" }
+ctaphid-dispatch = { git = "https://github.com/Nitrokey/ctaphid-dispatch", tag = "v0.1.1-nitrokey.2" }
+
+# unreleased crates
+trussed-auth = { git = "https://github.com/Nitrokey/trussed-auth", tag = "v0.2.2-nitrokey.1" }
+trussed-usbip = { git = "https://github.com/Nitrokey/pc-usbip-runner", tag = "v0.0.1-nitrokey.1" }
