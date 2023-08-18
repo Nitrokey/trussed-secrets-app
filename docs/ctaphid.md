@@ -37,7 +37,7 @@ Following commands are accepted by the Secrets App:
 | ChangePIN        | 0x00 | 0xB3 | 0x00 | 0x00 | Change PIN                                                      |
 | SetPIN           | 0x00 | 0xB4 | 0x00 | 0x00 | Set PIN. Can be called only once, directly after factory reset. |
 | GetCredential    | 0x00 | 0xB5 | 0x00 | 0x00 | Get static password entry                                       |
-| CredentialUpdate | 0x00 | 0xB7 | 0x00 | 0x00 | Update static password entry                                    |
+| UpdateCredential | 0x00 | 0xB7 | 0x00 | 0x00 | Update static password entry                                    |
 
 This is a standard ISO7816 encoding of the command and its parameters. The P1 and P2 are mostly unused, except for the
 case of Reset and Calculate commands. The class `cls` parameter is always `0`.
@@ -157,11 +157,11 @@ List command returns a TLV encoded list of binary strings (version 1 format):
 
 None
 
-### CredentialUpdate
+### UpdateCredential
 
 | Command          | Cls  | Ins  | P1   | P2   | Description                  |
 |------------------|------|------|------|------|------------------------------|
-| CredentialUpdate | 0x00 | 0xB7 | 0x00 | 0x00 | Update static password entry |
+| UpdateCredential | 0x00 | 0xB7 | 0x00 | 0x00 | Update static password entry |
 
 
 #### Input
@@ -285,7 +285,7 @@ Options:
 | VerifyCode       | Yes*                       | No                         | No                               |
 | SendRemaining    | No                         | No                         | No                               |
 | GetCredential    | Yes*                       | No                         | No                               |
-| CredentialUpdate | Yes                        | Yes*                       | No                               |
+| UpdateCredential | Yes                        | Yes*                       | No                               |
 
 Notes:
 
