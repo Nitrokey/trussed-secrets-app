@@ -618,8 +618,8 @@ where
         self.err_if_credential_with_label_exists(register.credential.label)?;
 
         // 1. Replace secret in credential with a handle
-        let credential = CredentialFlat::try_from(&register.credential).map_err(|_| {
-            warn_now!("Failed to convert credential to flat");
+        let credential = CredentialFlat::try_from(&register.credential).map_err(|_e| {
+            warn_now!("Failed to convert credential to flat: {:?}", _e);
             Status::NotEnoughMemory
         })?;
 
