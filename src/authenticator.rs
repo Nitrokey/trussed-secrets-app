@@ -606,7 +606,9 @@ where
         }
 
         // Abort if the credentials count limit is reached
-        if self.count_credentials()? >= self.options.max_resident_credentials_allowed {
+        let _current_count = self.count_credentials()?;
+        if _current_count >= self.options.max_resident_credentials_allowed {
+            warn_now!("Credentials limit hit: {:?}", _current_count,);
             return Err(Status::NotEnoughMemory);
         }
 
@@ -615,9 +617,11 @@ where
         // Explicitly disallow to overwrite existing credentials by default
         self.err_if_credential_with_label_exists(register.credential.label)?;
 
-        // 1. Replace secret in credential with handle
-        let credential =
-            CredentialFlat::try_from(&register.credential).map_err(|_| Status::NotEnoughMemory)?;
+        // 1. Replace secret in credential with a handle
+        let credential = CredentialFlat::try_from(&register.credential).map_err(|_e| {
+            warn_now!("Failed to convert credential to flat: {:?}", _e);
+            Status::NotEnoughMemory
+        })?;
 
         // 2. Generate a filename for the credential
         let filename = self.filename_for_label(&credential.label);
