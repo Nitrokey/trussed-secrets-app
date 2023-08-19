@@ -115,8 +115,8 @@ impl State {
         })?;
         debug_now!("Container size: {}", data_serialized.len());
         try_syscall!(trussed.write_file(self.location, filename, data_serialized, None)).map_err(
-            |_| {
-                debug_now!("Failed to write the file");
+            |e| {
+                warn_now!("Failed to write the file: {:?}", e);
                 Status::NotEnoughMemory
             },
         )?;
