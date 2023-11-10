@@ -127,8 +127,10 @@ use clap_num::maybe_hex;
 use log::{debug, info, warn};
 use trussed::backend::BackendId;
 use trussed::platform::{consent, reboot, ui};
+use trussed::service::ClientFilestore;
 use trussed::types::Location;
-use trussed::{virt, ClientImplementation, Platform};
+use trussed::virt::{self, Filesystem, StoreProvider};
+use trussed::{ClientImplementation, Platform};
 use trussed_usbip::ClientBuilder;
 
 use usbd_ctaphid::constants::MESSAGE_SIZE;
@@ -330,7 +332,7 @@ impl AdminData {
 
 struct Apps {
     fido: fido_authenticator::Authenticator<fido_authenticator::Conforming, VirtClient>,
-    admin: admin_app::App<VirtClient, Reboot, AdminStatus>,
+    admin: admin_app::App<VirtClient, Reboot, AdminStatus, ()>,
     secrets: secrets_app::Authenticator<VirtClient>,
 }
 
@@ -348,9 +350,12 @@ impl trussed_usbip::Apps<'static, VirtClient, dispatch::Dispatch> for Apps {
                 max_resident_credential_count: Some(MAX_RESIDENT_CREDENTIAL_COUNT),
             },
         );
+
+        let mut filestore = ClientFilestore::new("admin".into(), unsafe { Filesystem::store() });
         let data = AdminData::new(Variant::Usbip);
-        let admin = admin_app::App::new(
+        let admin = admin_app::App::load(
             builder.build("admin", &[BackendId::Core]),
+            &mut filestore,
             [0; 16],
             0,
             "",

@@ -1357,7 +1357,12 @@ where
         + client::Chacha8Poly1305
         + trussed_auth::AuthClient,
 {
-    fn select(&mut self, apdu: &iso7816::Command<C>, reply: &mut Data<R>) -> Result {
+    fn select(
+        &mut self,
+        _interface: iso7816::Interface,
+        apdu: &iso7816::Command<C>,
+        reply: &mut Data<R>,
+    ) -> Result {
         self.respond(apdu, reply)
     }
 
