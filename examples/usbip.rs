@@ -17,22 +17,27 @@ mod dispatch {
         types::{Bytes, Context, Location},
     };
     use trussed_auth::{AuthBackend, AuthContext, AuthExtension, MAX_HW_KEY_LEN};
+    use trussed_hkdf::HkdfExtension;
+    use trussed_staging::{StagingBackend, StagingContext};
 
     pub const BACKENDS: &[BackendId<Backend>] =
         &[BackendId::Custom(Backend::Auth), BackendId::Core];
 
     pub enum Backend {
         Auth,
+        Staging,
     }
 
     pub enum Extension {
         Auth,
+        Hkdf,
     }
 
     impl From<Extension> for u8 {
         fn from(extension: Extension) -> Self {
             match extension {
                 Extension::Auth => 0,
+                Extension::Hkdf => 1,
             }
         }
     }
@@ -43,6 +48,7 @@ mod dispatch {
         fn try_from(id: u8) -> Result<Self, Self::Error> {
             match id {
                 0 => Ok(Extension::Auth),
+                1 => Ok(Extension::Hkdf),
                 _ => Err(Error::InternalError),
             }
         }
@@ -50,23 +56,27 @@ mod dispatch {
 
     pub struct Dispatch {
         auth: AuthBackend,
+        staging: StagingBackend,
     }
 
     #[derive(Default)]
     pub struct DispatchContext {
         auth: AuthContext,
+        staging: StagingContext,
     }
 
     impl Dispatch {
         pub fn new() -> Self {
             Self {
                 auth: AuthBackend::new(Location::Internal),
+                staging: StagingBackend::new(),
             }
         }
 
         pub fn with_hw_key(hw_key: Bytes<MAX_HW_KEY_LEN>) -> Self {
             Self {
                 auth: AuthBackend::with_hw_key(Location::Internal, hw_key),
+                staging: StagingBackend::new(),
             }
         }
     }
@@ -88,6 +98,12 @@ mod dispatch {
                     self.auth
                         .request(&mut ctx.core, &mut ctx.backends.auth, request, resources)
                 }
+                Backend::Staging => self.staging.request(
+                    &mut ctx.core,
+                    &mut ctx.backends.staging,
+                    request,
+                    resources,
+                ),
             }
         }
 
@@ -107,6 +123,16 @@ mod dispatch {
                         request,
                         resources,
                     ),
+                    _ => Err(Error::RequestNotAvailable),
+                },
+                Backend::Staging => match extension {
+                    Extension::Hkdf => self.staging.extension_request_serialized(
+                        &mut ctx.core,
+                        &mut ctx.backends.staging,
+                        request,
+                        resources,
+                    ),
+                    _ => Err(Error::RequestNotAvailable),
                 },
             }
         }
@@ -116,6 +142,11 @@ mod dispatch {
         type Id = Extension;
 
         const ID: Self::Id = Self::Id::Auth;
+    }
+    impl ExtensionId<HkdfExtension> for Dispatch {
+        type Id = Extension;
+
+        const ID: Self::Id = Self::Id::Hkdf;
     }
 }
 
@@ -348,6 +379,8 @@ impl trussed_usbip::Apps<'static, VirtClient, dispatch::Dispatch> for Apps {
                 max_msg_size: MESSAGE_SIZE,
                 skip_up_timeout: None,
                 max_resident_credential_count: Some(MAX_RESIDENT_CREDENTIAL_COUNT),
+                large_blobs: None,
+                nfc_transport: false,
             },
         );
 
