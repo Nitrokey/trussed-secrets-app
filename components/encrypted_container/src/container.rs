@@ -7,6 +7,7 @@ use heapless_bytes::Bytes;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use trussed::{
+    client::{Client, mechanisms::Chacha8Poly1305},
     try_syscall,
     types::{KeyId, Message},
 };
@@ -110,7 +111,7 @@ impl EncryptedDataContainer {
         encryption_key: KeyId,
     ) -> Result<O>
     where
-        T: trussed::Client + trussed::client::Chacha8Poly1305,
+        T: Client + Chacha8Poly1305,
         O: DeserializeOwned,
     {
         let deserialized_container: EncryptedDataContainer =
@@ -127,7 +128,7 @@ impl EncryptedDataContainer {
         encryption_key: KeyId,
     ) -> Result<EncryptedDataContainer>
     where
-        T: trussed::Client + trussed::client::Chacha8Poly1305,
+        T: Client + Chacha8Poly1305,
         O: Serialize,
     {
         let message = Message::try_from(|buf| {
@@ -148,7 +149,7 @@ impl EncryptedDataContainer {
         encryption_key: KeyId,
     ) -> Result<EncryptedDataContainer>
     where
-        T: trussed::Client + trussed::client::Chacha8Poly1305,
+        T: Client + Chacha8Poly1305,
     {
         #[cfg(dangerous_disable_encryption)]
         {
@@ -187,7 +188,7 @@ impl EncryptedDataContainer {
         encryption_key: KeyId,
     ) -> Result<O>
     where
-        T: trussed::Client + trussed::client::Chacha8Poly1305,
+        T: Client + Chacha8Poly1305,
         O: DeserializeOwned,
     {
         let message = self
@@ -204,7 +205,7 @@ impl EncryptedDataContainer {
         encryption_key: KeyId,
     ) -> Result<Message>
     where
-        T: trussed::Client + trussed::client::Chacha8Poly1305,
+        T: Client + Chacha8Poly1305,
     {
         if self.data.is_empty() {
             return Err(Error::EmptyContainerData);
