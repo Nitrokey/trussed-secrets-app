@@ -213,6 +213,12 @@ impl CredentialFlat {
 
     /// Update credential fields with new values, and save
     pub fn update_from(&mut self, update_req: UpdateCredential) -> Result<(), Status> {
+        // Updating ReverseHOTP is disabled
+        if matches!(self.kind, Kind::HotpReverse) {
+            warn_now!("Attempt to update ReverseHOTP credential");
+            return Err(Status::ConditionsOfUseNotSatisfied);
+        }
+
         if let Some(new_label) = update_req.new_label {
             self.label = ShortData::from_slice(new_label).map_err(|_| Status::NotEnoughMemory)?;
         }
