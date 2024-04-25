@@ -64,7 +64,7 @@ trussed = { git = "https://github.com/Nitrokey/trussed", tag = "v0.1.0-nitrokey.
 
 # unreleased upstream changes
 ctaphid-dispatch = { git = "https://github.com/Nitrokey/ctaphid-dispatch", tag = "v0.1.1-nitrokey.2" }
-serde-indexed = { git = "https://github.com/sosthene-nitrokey/serde-indexed.git", rev = "5005d23cb4ee8622e62188ea0f9466146f851f0d" }
+serde-indexed = { git = "https://github.com/nitrokey/serde-indexed.git", tag = "v0.1.0-nitrokey.2" }
 
 # unreleased crates
 trussed-auth = { git = "https://github.com/trussed-dev/trussed-auth", tag = "v0.3.0" }

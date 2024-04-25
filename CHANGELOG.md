@@ -2,11 +2,33 @@
 
 ## [Unreleased](https://github.com/nitrokey/trussed-secrets-app/tree/HEAD)
 
-[Full Changelog](https://github.com/nitrokey/trussed-secrets-app/compare/v0.12.0...HEAD)
+[Full Changelog](https://github.com/nitrokey/trussed-secrets-app/compare/v0.13.0...HEAD)
+
+## [0.13.0](https://github.com/nitrokey/trussed-secrets-app/tree/v0.13.0) (2024-05-02)
+
+[Full Changelog](https://github.com/nitrokey/trussed-secrets-app/compare/v0.12.0...v0.13.0)
+
+**Added features**
+
+- Add support for credential update [\#97](https://github.com/Nitrokey/trussed-secrets-app/issues/97) and [\#99](https://github.com/Nitrokey/trussed-secrets-app/issues/99)
+- Prevent overwriting of credentials with `Register` [\#96](https://github.com/Nitrokey/trussed-secrets-app/issues/96)
 
 **Fixed bugs:**
 
 - Confirm Credential removal with a touch [\#92](https://github.com/Nitrokey/trussed-secrets-app/issues/92)
+- Require PIN confirmation for registering `ReverseHotp` credentials [\#114](https://github.com/Nitrokey/trussed-secrets-app/issues/114)
+
+**Removed**
+
+- Remove challenge-response implementation [\#83](https://github.com/Nitrokey/trussed-secrets-app/pull/83)
+
+**Changed**
+
+- Update documentation [\#100](https://github.com/Nitrokey/trussed-secrets-app/issues/100)
+- Improved logging and usbip simulation [\#102](https://github.com/Nitrokey/trussed-secrets-app/issues/102)
+- Fix compilation of fuzz targets [\#104](https://github.com/Nitrokey/trussed-secrets-app/issues/104)
+- Remove unused `interchange` dependency [\#105](https://github.com/Nitrokey/trussed-secrets-app/issues/105)
+- Use trussed-auth 0.3.0 [\#109](https://github.com/Nitrokey/trussed-secrets-app/issues/109)
 
 ## [v0.12.0](https://github.com/nitrokey/trussed-secrets-app/tree/v0.12.0) (2023-06-28)
 
