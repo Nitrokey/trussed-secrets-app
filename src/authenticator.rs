@@ -20,6 +20,7 @@ use crate::command::CredentialData::HmacData;
 use crate::command::{Credential, EncryptionKeyType, ListCredentials, VerifyCode, YkGetHmac};
 use crate::credential::CredentialFlat;
 
+use crate::oath::Kind;
 use crate::{
     command, ensure, oath,
     state::{CommandState, State},
@@ -625,6 +626,12 @@ where
 
         // 2. Generate a filename for the credential
         let filename = self.filename_for_label(&credential.label);
+
+        // 2.5 Require PIN to have been verified before creating an ReverseHOTP credential
+        if credential.kind == Kind::HotpReverse && !self.state.runtime.client_authorized {
+            warn_now!("Attempt to create ReverseHOTP credential without authentication");
+            return Err(Status::SecurityStatusNotSatisfied);
+        }
 
         // 3. Serialize the credential (implicitly) and store it
         let write_res = self.state.try_write_file(
