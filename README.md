@@ -23,7 +23,7 @@ Secrets App supports the following features:
 - HOTP implementation - [RFC4226];
 - TOTP implementation - [RFC6238];
 - Reverse HOTP implementation - [the original client][hotp-verif];
-- Yubikey's HMAC-SHA1 challenge for KeepassXC - [KeepassXC documentation][keepass-docs], [setup tutorial][hmac-tutorial];
+- Yubikey's HMAC-SHA1 challenge for KeepassXC - [KeepassXC documentation][keepass-docs];
 - Password Safe;
 - A PIN with attempts counter;
 - PIN-based encryption per credential;
