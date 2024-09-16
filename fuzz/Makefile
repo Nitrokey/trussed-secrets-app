@@ -39,9 +39,9 @@ ci:
 .PHONY: setup
 setup:
 	rustup component add clippy rustfmt && rustup toolchain install nightly
-	rustup component add llvm-tools-preview
-	cargo install cargo-fuzz --profile release
-	#cargo install cargo-tarpaulin --profile release  # for coverage
+	rustup +nightly component add llvm-tools-preview
+	cargo +nightly install cargo-fuzz --profile release
+	cargo +nightly install cargo-tarpaulin cargo-binutils --profile release  # for coverage
 	# python3 -m pip install reuse
 	# Fedora 37
 	# sudo ln -s libclang.so.15 libclang.so
