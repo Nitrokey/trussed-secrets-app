@@ -11,6 +11,7 @@ use core::time::Duration;
 use flexiber::EncodableHeapless;
 use heapless_bytes::Bytes;
 use iso7816::{Data, Status};
+use littlefs2_core::path;
 use trussed::types::Location;
 use trussed::types::{KeyId, Message};
 use trussed::{self, client, syscall, try_syscall};
@@ -212,7 +213,7 @@ where
         + trussed_auth::AuthClient,
 {
     fn credential_directory() -> trussed::types::PathBuf {
-        trussed::types::PathBuf::from("cred")
+        trussed::types::PathBuf::from(path!("cred"))
     }
 
     /// Create new Authenticator instance
@@ -680,7 +681,7 @@ where
             hex_filename[2 * i + 1] = LOOKUP[(value & 0xF) as usize];
         }
 
-        let filename = trussed::types::PathBuf::from(hex_filename.as_ref());
+        let filename = trussed::types::PathBuf::try_from(hex_filename.as_ref()).unwrap();
         let mut path = Self::credential_directory();
         path.push(&filename);
         info_now!("filename: {}", path.as_str_ref_with_trailing_nul());

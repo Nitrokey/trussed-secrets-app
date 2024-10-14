@@ -7,6 +7,7 @@ use core::convert::TryInto;
 use core::time::Duration;
 
 use iso7816::Status;
+use littlefs2_core::path;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -17,7 +18,7 @@ use trussed::client::FilesystemClient;
 use trussed::types::Message;
 use trussed::{
     syscall, try_syscall,
-    types::{KeyId, Location, PathBuf},
+    types::{KeyId, Location, Path, PathBuf},
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -75,7 +76,7 @@ impl Runtime {
 impl Persistent {}
 
 impl State {
-    const FILENAME: &'static str = "state.bin";
+    const FILENAME: &'static Path = path!("state.bin");
 
     pub fn new(location: Location) -> Self {
         Self {
