@@ -9,8 +9,7 @@ use trussed::{
 };
 use trussed_auth::{AuthBackend, AuthContext, AuthExtension, MAX_HW_KEY_LEN};
 
-pub const BACKENDS: &[BackendId<Backend>] =
-    &[BackendId::Custom(Backend::Auth), BackendId::Core];
+pub const BACKENDS: &[BackendId<Backend>] = &[BackendId::Custom(Backend::Auth), BackendId::Core];
 
 pub enum Backend {
     Auth,

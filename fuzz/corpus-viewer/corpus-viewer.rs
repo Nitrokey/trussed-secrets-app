@@ -57,8 +57,8 @@ fn main() -> Result<(), ()> {
 
         let commands = parse(data.as_ref());
         for data in commands {
-            if let Ok(command) = iso7816::Command::<{ 10 * 255 }>::try_from(data) {
-                if let Ok(cmd) = secrets_app::Command::try_from(&command) {
+            if let Ok(command) = iso7816::command::CommandView::try_from(data) {
+                if let Ok(cmd) = secrets_app::Command::try_from(command) {
                     println!(">>> {:?}", cmd);
                 } else {
                     println!(">>> (unparsed) {:?}", command);

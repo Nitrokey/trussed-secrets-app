@@ -232,9 +232,9 @@ where
     }
 
     /// Respond to the iso7816 encoded request
-    pub fn respond<const C: usize, const R: usize>(
+    pub fn respond<const R: usize>(
         &mut self,
-        command: &iso7816::Command<C>,
+        command: iso7816::command::CommandView<'_>,
         reply: &mut Data<R>,
     ) -> Result {
         let client_authorized_before = self.state.runtime.client_authorized;
@@ -258,9 +258,9 @@ where
         result
     }
 
-    fn inner_respond<const C: usize, const R: usize>(
+    fn inner_respond<const R: usize>(
         &mut self,
-        command: &iso7816::Command<C>,
+        command: iso7816::command::CommandView<'_>,
         reply: &mut Data<R>,
     ) -> Result {
         let class = command.class();
@@ -1355,7 +1355,7 @@ impl<T> iso7816::App for Authenticator<T> {
 }
 
 #[cfg(feature = "apdu-dispatch")]
-impl<T, const C: usize, const R: usize> apdu_dispatch::app::App<C, R> for Authenticator<T>
+impl<T, const R: usize> apdu_app::App<R> for Authenticator<T>
 where
     T: client::Client
         + client::HmacSha1
@@ -1367,7 +1367,7 @@ where
     fn select(
         &mut self,
         _interface: iso7816::Interface,
-        apdu: &iso7816::Command<C>,
+        apdu: iso7816::command::CommandView<'_>,
         reply: &mut Data<R>,
     ) -> Result {
         self.respond(apdu, reply)
@@ -1379,7 +1379,7 @@ where
     fn call(
         &mut self,
         _: iso7816::Interface,
-        apdu: &iso7816::Command<C>,
+        apdu: iso7816::command::CommandView<'_>,
         reply: &mut Data<R>,
     ) -> Result {
         self.respond(apdu, reply)

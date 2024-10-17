@@ -13,9 +13,9 @@ pub type VirtClient<S> = Client<S, dispatch::Dispatch>;
 
 /// Run a client using a provided store
 pub fn with_client<S, R, F>(store: S, client_id: &str, f: F) -> R
-    where
-        F: FnOnce(VirtClient<S>) -> R,
-        S: StoreProvider,
+where
+    F: FnOnce(VirtClient<S>) -> R,
+    S: StoreProvider,
 {
     #[allow(clippy::unwrap_used)]
     virt::with_platform(store, |platform| {
@@ -31,8 +31,8 @@ pub fn with_client<S, R, F>(store: S, client_id: &str, f: F) -> R
 /// Run the backend with the extensions required
 /// using a RAM file storage
 pub fn with_ram_client<R, F>(client_id: &str, f: F) -> R
-    where
-        F: FnOnce(VirtClient<Ram>) -> R,
+where
+    F: FnOnce(VirtClient<Ram>) -> R,
 {
     with_client(Ram::default(), client_id, f)
 }

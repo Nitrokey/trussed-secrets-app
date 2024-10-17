@@ -42,25 +42,18 @@ use trussed::types::Location;
 mod virt;
 
 fuzz_target!(|data: &[u8]| {
-
     virt::with_ram_client("secrets", move |client| {
-
-        let options = secrets_app::Options::new(
-            Location::Internal,
-            0,
-            1,
-            [0x42, 0x42, 0x42, 0x42],
-            u16::MAX,
-        );
+        let options =
+            secrets_app::Options::new(Location::Internal, 0, 1, [0x42, 0x42, 0x42, 0x42], u16::MAX);
         let mut secrets = secrets_app::Authenticator::new(client, options);
 
         let mut response = heapless::Vec::<u8, { 3 * 1024 }>::new();
 
         let commands = parse(data);
         for data in commands {
-            if let Ok(command) = iso7816::Command::<{ 10 * 255 }>::try_from(data) {
+            if let Ok(command) = iso7816::command::CommandView::try_from(data) {
                 response.clear();
-                secrets.respond(&command, &mut response).ok();
+                secrets.respond(command, &mut response).ok();
             }
         }
     })

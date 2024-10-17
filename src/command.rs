@@ -9,7 +9,7 @@ use flexiber::{Encodable, SimpleTag, TagLike};
 use serde::{Deserialize, Serialize};
 
 use iso7816::command::class::Class;
-use iso7816::{Data, Instruction, Status};
+use iso7816::{Instruction, Status};
 use YkCommand::GetSerial;
 
 use crate::oath::{Tag, YkCommand};
@@ -142,9 +142,9 @@ pub struct SetPassword<'l> {
     pub response: &'l [u8],
 }
 
-impl<'l, const C: usize> TryFrom<&'l Data<C>> for SetPassword<'l> {
+impl<'l> TryFrom<&'l [u8]> for SetPassword<'l> {
     type Error = Status;
-    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
+    fn try_from(data: &'l [u8]) -> Result<Self, Self::Error> {
         // key = self.derive_key(password)
         // keydata = bytearray([OATH_TYPE.TOTP | ALGO.SHA1]) + key
         // challenge = os.urandom(8)
@@ -205,9 +205,9 @@ pub struct Validate<'l> {
     pub challenge: &'l [u8],
 }
 
-impl<'l, const C: usize> TryFrom<&'l Data<C>> for Validate<'l> {
+impl<'l> TryFrom<&'l [u8]> for Validate<'l> {
     type Error = Status;
-    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
+    fn try_from(data: &'l [u8]) -> Result<Self, Self::Error> {
         use flexiber::TaggedSlice;
         let mut decoder = flexiber::Decoder::new(data);
 
@@ -238,9 +238,9 @@ pub struct VerifyCode<'l> {
     pub response: u32,
 }
 
-impl<'l, const C: usize> TryFrom<&'l Data<C>> for VerifyCode<'l> {
+impl<'l> TryFrom<&'l [u8]> for VerifyCode<'l> {
     type Error = Status;
-    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
+    fn try_from(data: &'l [u8]) -> Result<Self, Self::Error> {
         use flexiber::TaggedSlice;
         let mut decoder = flexiber::Decoder::new(data);
 
@@ -272,9 +272,9 @@ pub struct SetPin<'l> {
     pub password: &'l [u8],
 }
 
-impl<'l, const C: usize> TryFrom<&'l Data<C>> for SetPin<'l> {
+impl<'l> TryFrom<&'l [u8]> for SetPin<'l> {
     type Error = Status;
-    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
+    fn try_from(data: &'l [u8]) -> Result<Self, Self::Error> {
         use flexiber::TaggedSlice;
         let mut decoder = flexiber::Decoder::new(data);
 
@@ -295,9 +295,9 @@ pub struct RenameCredential<'l> {
     pub new_label: &'l [u8],
 }
 
-impl<'l, const C: usize> TryFrom<&'l Data<C>> for RenameCredential<'l> {
+impl<'l> TryFrom<&'l [u8]> for RenameCredential<'l> {
     type Error = Status;
-    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
+    fn try_from(data: &'l [u8]) -> Result<Self, Self::Error> {
         use flexiber::TaggedSlice;
         let mut decoder = flexiber::Decoder::new(data);
 
@@ -324,9 +324,9 @@ pub struct GetCredential<'l> {
     pub label: &'l [u8],
 }
 
-impl<'l, const C: usize> TryFrom<&'l Data<C>> for GetCredential<'l> {
+impl<'l> TryFrom<&'l [u8]> for GetCredential<'l> {
     type Error = Status;
-    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
+    fn try_from(data: &'l [u8]) -> Result<Self, Self::Error> {
         use flexiber::TaggedSlice;
         let mut decoder = flexiber::Decoder::new(data);
 
@@ -347,9 +347,9 @@ pub struct ChangePin<'l> {
     pub new_password: &'l [u8],
 }
 
-impl<'l, const C: usize> TryFrom<&'l Data<C>> for ChangePin<'l> {
+impl<'l> TryFrom<&'l [u8]> for ChangePin<'l> {
     type Error = Status;
-    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
+    fn try_from(data: &'l [u8]) -> Result<Self, Self::Error> {
         use flexiber::TaggedSlice;
         let mut decoder = flexiber::Decoder::new(data);
 
@@ -379,9 +379,9 @@ pub struct VerifyPin<'l> {
     pub password: &'l [u8],
 }
 
-impl<'l, const C: usize> TryFrom<&'l Data<C>> for VerifyPin<'l> {
+impl<'l> TryFrom<&'l [u8]> for VerifyPin<'l> {
     type Error = Status;
-    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
+    fn try_from(data: &'l [u8]) -> Result<Self, Self::Error> {
         use flexiber::TaggedSlice;
         let mut decoder = flexiber::Decoder::new(data);
 
@@ -402,9 +402,9 @@ pub struct Calculate<'l> {
     pub challenge: &'l [u8],
 }
 
-impl<'l, const C: usize> TryFrom<&'l Data<C>> for Calculate<'l> {
+impl<'l> TryFrom<&'l [u8]> for Calculate<'l> {
     type Error = Status;
-    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
+    fn try_from(data: &'l [u8]) -> Result<Self, Self::Error> {
         use flexiber::TaggedSlice;
         let mut decoder = flexiber::Decoder::new(data);
 
@@ -431,9 +431,9 @@ pub struct CalculateAll<'l> {
     pub challenge: &'l [u8],
 }
 
-impl<'l, const C: usize> TryFrom<&'l Data<C>> for CalculateAll<'l> {
+impl<'l> TryFrom<&'l [u8]> for CalculateAll<'l> {
     type Error = Status;
-    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
+    fn try_from(data: &'l [u8]) -> Result<Self, Self::Error> {
         use flexiber::TaggedSlice;
         let mut decoder = flexiber::Decoder::new(data);
 
@@ -464,9 +464,9 @@ impl core::fmt::Debug for Delete<'_> {
     }
 }
 
-impl<'l, const C: usize> TryFrom<&'l Data<C>> for Delete<'l> {
+impl<'l> TryFrom<&'l [u8]> for Delete<'l> {
     type Error = Status;
-    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
+    fn try_from(data: &'l [u8]) -> Result<Self, Self::Error> {
         use flexiber::TaggedSlice;
         let mut decoder = flexiber::Decoder::new(data);
 
@@ -481,9 +481,9 @@ impl<'l, const C: usize> TryFrom<&'l Data<C>> for Delete<'l> {
     }
 }
 
-impl<'l, const C: usize> TryFrom<&'l Data<C>> for ListCredentials {
+impl<'l> TryFrom<&'l [u8]> for ListCredentials {
     type Error = Status;
-    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
+    fn try_from(data: &'l [u8]) -> Result<Self, Self::Error> {
         let v = if !data.is_empty() { data[0] } else { 0 };
         Ok(ListCredentials { version: v })
     }
@@ -516,9 +516,9 @@ pub struct UpdateCredential<'l> {
     pub password_safe: Option<PasswordSafeData<'l>>,
 }
 
-impl<'l, const C: usize> TryFrom<&'l Data<C>> for UpdateCredential<'l> {
+impl<'l> TryFrom<&'l [u8]> for UpdateCredential<'l> {
     type Error = Status;
-    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
+    fn try_from(data: &'l [u8]) -> Result<Self, Self::Error> {
         use flexiber::TaggedSlice;
         let mut decoder = flexiber::Decoder::new(data);
 
@@ -697,10 +697,10 @@ impl TryFrom<SimpleTag> for Tag {
     }
 }
 
-impl<'l, const C: usize> TryFrom<&'l Data<C>> for Register<'l> {
+impl<'l> TryFrom<&'l [u8]> for Register<'l> {
     type Error = Status;
 
-    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
+    fn try_from(data: &'l [u8]) -> Result<Self, Self::Error> {
         // All fields of the OTP Credential are obligatory
         // The PWS entries are optional
         use flexiber::Decodable;
@@ -878,7 +878,7 @@ impl<'l> Command<'l> {
         }
     }
 }
-impl<'l, const C: usize> TryFrom<&'l iso7816::Command<C>> for Command<'l> {
+impl<'l> TryFrom<iso7816::command::CommandView<'l>> for Command<'l> {
     type Error = Status;
     /// The first layer of unraveling the iso7816::Command onion.
     ///
@@ -886,7 +886,7 @@ impl<'l, const C: usize> TryFrom<&'l iso7816::Command<C>> for Command<'l> {
     /// in the "Command Syntax" boxes of NIST SP 800-73-4, and return early errors.
     ///
     /// The individual piv::Command TryFroms then further interpret these validated parameters.
-    fn try_from(command: &'l iso7816::Command<C>) -> Result<Self, Self::Error> {
+    fn try_from(command: iso7816::command::CommandView<'l>) -> Result<Self, Self::Error> {
         let (class, instruction, p1, p2) = (
             command.class(),
             command.instruction(),
@@ -956,11 +956,11 @@ impl<'l, const C: usize> TryFrom<&'l iso7816::Command<C>> for Command<'l> {
     }
 }
 
-impl<'l, const C: usize> TryFrom<&'l Data<C>> for Select<'l> {
+impl<'l> TryFrom<&'l [u8]> for Select<'l> {
     type Error = Status;
-    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
+    fn try_from(data: &'l [u8]) -> Result<Self, Self::Error> {
         // info_now!("comparing {} against {}", hex_str!(data.as_slice()), hex_str!(crate::YUBICO_OATH_AID));
-        Ok(match data.as_slice() {
+        Ok(match data {
             crate::YUBICO_OATH_AID => Self { aid: data },
             _ => return Err(Status::NotFound),
         })

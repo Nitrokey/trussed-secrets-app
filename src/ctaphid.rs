@@ -3,7 +3,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-use crate::{Authenticator, CTAPHID_MESSAGE_SIZE_LIMIT};
+use crate::Authenticator;
 use ctaphid_dispatch::app::{self, Command as HidCommand, Message};
 use ctaphid_dispatch::command::VendorCommand;
 use iso7816::Status;
@@ -29,18 +29,19 @@ where
         input_data: &Message,
         response: &mut Message,
     ) -> app::AppResult {
-        const MAX_COMMAND_LENGTH: usize = CTAPHID_MESSAGE_SIZE_LIMIT;
         match command {
             HidCommand::Vendor(OTP_CCID) => {
                 let arr: [u8; 2] = Status::Success.into();
                 response.extend(arr);
-                let ctap_to_iso7816_command =
-                    iso7816::Command::<MAX_COMMAND_LENGTH>::try_from(input_data).map_err(|_e| {
-                        response.clear();
-                        info_now!("ISO conversion error: {:?}", _e);
-                        app::Error::InvalidLength
-                    })?;
-                let res = self.respond(&ctap_to_iso7816_command, response);
+                let ctap_to_iso7816_command = iso7816::command::CommandView::try_from(
+                    input_data.as_slice(),
+                )
+                .map_err(|_e| {
+                    response.clear();
+                    info_now!("ISO conversion error: {:?}", _e);
+                    app::Error::InvalidLength
+                })?;
+                let res = self.respond(ctap_to_iso7816_command, response);
 
                 match res {
                     Ok(_) => return Ok(()),
