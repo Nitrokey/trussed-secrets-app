@@ -70,16 +70,6 @@ pub struct YkGetHmac<'l> {
     pub slot_cmd: Option<YkCommand>,
 }
 
-impl<'l, const C: usize> TryFrom<&'l Data<C>> for YkGetHmac<'l> {
-    type Error = Status;
-    fn try_from(data: &'l Data<C>) -> Result<Self, Self::Error> {
-        Ok(Self {
-            challenge: data,
-            slot_cmd: None,
-        })
-    }
-}
-
 impl<'l> YkGetHmac<'l> {
     pub fn get_credential_label(&self) -> Result<&[u8], Status> {
         Ok(match self.slot_cmd.ok_or(Status::IncorrectDataParameter)? {
