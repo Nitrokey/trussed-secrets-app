@@ -10,7 +10,7 @@ description = "Secrets App - a Trussed app to manage OTP and Password Safe featu
 [dependencies]
 apdu-app = { version = "0.1",  optional = true }
 ctaphid-dispatch = { version = "0.1", optional = true }
-cbor-smol = "0.4"
+cbor-smol = "0.5"
 delog = "0.1.6"
 flexiber = { version = "0.1.0", features = ["derive", "heapless"] }
 heapless = "0.7"
