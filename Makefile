@@ -1,10 +1,9 @@
 .PHONY: ci setup-ubuntu run
 
-FLAGS=--example usbip --features "ctaphid devel"
-
 ci:
+	cargo check --all-targets
+	cargo check --all-targets --features apdu-dispatch,ctaphid
 	cargo test --verbose
-	cargo build $(FLAGS)
 
 run:
 	env RUST_LOG=debug cargo run $(FLAGS)
