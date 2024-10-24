@@ -54,18 +54,19 @@ doc = false
 
 
 [patch.crates-io]
-littlefs2 = { git = "https://github.com/trussed-dev/littlefs2.git", rev = "ebd27e49ca321089d01d8c9b169c4aeb58ceeeca" }
+littlefs2 = { git = "https://github.com/trussed-dev/littlefs2.git", branch = "release-0.5.0" }
+littlefs2-core = { git = "https://github.com/trussed-dev/littlefs2.git", branch = "release-0.5.0" }
 flexiber = { git = "https://github.com/Nitrokey/flexiber", tag = "0.1.1.nitrokey" }
 apdu-dispatch = { git = "https://github.com/trussed-dev/apdu-dispatch.git", rev = "915fc237103fcecc29d0f0b73391f19abf6576de" }
 
 # forked
 ctap-types = { git = "https://github.com/trussed-dev/ctap-types.git", rev = "4846817d9cd44604121680a19d46f3264973a3ce" }
-trussed = { git = "https://github.com/Nitrokey/trussed", tag = "v0.1.0-nitrokey.18" }
+trussed = { git = "https://github.com/trussed-dev/trussed", branch = "littlefs2" }
 
 # unreleased upstream changes
 ctaphid-dispatch = { git = "https://github.com/Nitrokey/ctaphid-dispatch", tag = "v0.1.1-nitrokey.2" }
 serde-indexed = { git = "https://github.com/nitrokey/serde-indexed.git", tag = "v0.1.0-nitrokey.2" }
 
 # unreleased crates
-trussed-auth = { git = "https://github.com/trussed-dev/trussed-auth", tag = "v0.3.0" }
-trussed-staging = { git = "https://github.com/trussed-dev/trussed-staging.git", tag = "v0.3.0" }
+trussed-auth = { git = "https://github.com/trussed-dev/trussed-auth", branch = "littlefs2" }
+trussed-staging = { git = "https://github.com/trussed-dev/trussed-staging.git", branch = "littlefs2" }
