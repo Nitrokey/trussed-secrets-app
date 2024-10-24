@@ -7,7 +7,7 @@ use trussed::{
     service::ServiceResources,
     types::{Bytes, Context, Location},
 };
-use trussed_auth::{AuthBackend, AuthContext, AuthExtension, MAX_HW_KEY_LEN};
+use trussed_auth::{AuthBackend, AuthContext, AuthExtension, FilesystemLayout, MAX_HW_KEY_LEN};
 
 pub const BACKENDS: &[BackendId<Backend>] = &[BackendId::Custom(Backend::Auth), BackendId::Core];
 
@@ -50,7 +50,7 @@ pub struct DispatchContext {
 impl Dispatch {
     pub fn with_hw_key(hw_key: Bytes<MAX_HW_KEY_LEN>) -> Self {
         Self {
-            auth: AuthBackend::with_hw_key(Location::Internal, hw_key),
+            auth: AuthBackend::with_hw_key(Location::Internal, hw_key, FilesystemLayout::V0),
         }
     }
 }

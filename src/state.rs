@@ -7,7 +7,7 @@ use core::convert::TryInto;
 use core::time::Duration;
 
 use iso7816::Status;
-use littlefs2::path;
+use littlefs2_core::path;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 

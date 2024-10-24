@@ -11,7 +11,7 @@ use core::time::Duration;
 use flexiber::EncodableHeapless;
 use heapless_bytes::Bytes;
 use iso7816::{Data, Status};
-use littlefs2::path;
+use littlefs2_core::path;
 use trussed::types::Location;
 use trussed::types::{KeyId, Message};
 use trussed::{self, client, syscall, try_syscall};
