@@ -733,7 +733,7 @@ where
             reply.extend_from_slice(&credential.label).unwrap();
 
             // calculate the value
-            if credential.kind == oath::Kind::Totp {
+            if credential.kind == Kind::Totp {
                 let truncated_digest = crate::calculate::calculate(
                     &mut self.trussed,
                     credential.algorithm,
@@ -890,13 +890,13 @@ where
         self.require_touch_if_needed(&credential)?;
 
         let truncated_digest = match credential.kind {
-            oath::Kind::Totp => crate::calculate::calculate(
+            Kind::Totp => crate::calculate::calculate(
                 &mut self.trussed,
                 credential.algorithm,
                 calculate.challenge,
                 &credential.secret,
             )?,
-            oath::Kind::Hotp => {
+            Kind::Hotp => {
                 if let Some(counter) = credential.counter {
                     self.calculate_hotp_digest_and_bump_counter(&credential, counter)?
                 } else {
@@ -958,7 +958,7 @@ where
         let code_in = args.response;
 
         let current_counter = match credential.kind {
-            oath::Kind::HotpReverse => {
+            Kind::HotpReverse => {
                 if let Some(counter) = credential.counter {
                     counter
                 } else {
@@ -1095,7 +1095,7 @@ where
     fn _extension_check_pin(&mut self, password: &[u8]) -> Result {
         let reply = try_syscall!(self.trussed.check_pin(
             BACKEND_USER_PIN_ID,
-            Bytes::from_slice(password).map_err(|_| iso7816::Status::IncorrectDataParameter)?
+            Bytes::from_slice(password).map_err(|_| Status::IncorrectDataParameter)?
         ))
         .map_err(|_| Status::SecurityStatusNotSatisfied)?;
         if !(reply.success) {
@@ -1116,7 +1116,7 @@ where
     fn _extension_set_pin(&mut self, password: &[u8]) -> Result {
         try_syscall!(self.trussed.set_pin(
             BACKEND_USER_PIN_ID,
-            Bytes::from_slice(password).map_err(|_| iso7816::Status::IncorrectDataParameter)?,
+            Bytes::from_slice(password).map_err(|_| Status::IncorrectDataParameter)?,
             Some(ATTEMPT_COUNTER_DEFAULT_RETRIES),
             true
         ))
@@ -1150,7 +1150,7 @@ where
     fn _extension_get_key_for_pin(&mut self, password: &[u8]) -> Result<KeyId> {
         let reply = try_syscall!(self.trussed.get_pin_key(
             BACKEND_USER_PIN_ID,
-            Bytes::from_slice(password).map_err(|_| iso7816::Status::IncorrectDataParameter)?
+            Bytes::from_slice(password).map_err(|_| Status::IncorrectDataParameter)?
         ))
         .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
         reply.result.ok_or(Status::VerificationFailed)
