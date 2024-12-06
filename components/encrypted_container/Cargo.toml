@@ -20,3 +20,6 @@ delog = "0.1.6"
 
 [features]
 # Use "dangerous_disable_encryption" config switch to disable the actual encryption, and store data instead in plaintext for debug purposes.
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(dangerous_disable_encryption)'] }
