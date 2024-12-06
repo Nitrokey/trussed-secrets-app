@@ -184,27 +184,6 @@ struct PINAnswerToSelect {
     serial: SerialType,
 }
 
-#[derive(Clone, Copy, flexiber::Encodable, Eq, PartialEq)]
-struct ChallengingAnswerToSelect {
-    #[tlv(simple = "0x79")] // Tag::Version
-    version: OathVersion,
-    #[tlv(simple = "0x71")] // Tag::Name
-    salt: [u8; 8],
-
-    // the following is listed as "locked" and "FIPS mode"
-    //
-    // NB: Current BER-TLV derive macro has limitation that it
-    // wants a tag. It should learn some kind of "suppress-tag-if-none".
-    // As we would like to send "nothing" when challeng is None,
-    // instead of '74 00', as with the tagged/Option derivation.
-    #[tlv(simple = "0x74")] // Tag::Challenge
-    challenge: [u8; 8],
-
-    #[tlv(simple = "0x7b")] // Tag::Algorithm
-    // algorithm: oath::Algorithm,
-    algorithm: [u8; 1],
-}
-
 impl AnswerToSelect {
     /// The salt is stable and used in modified form as "device ID" in ykman.
     /// It gets rotated on device reset.
