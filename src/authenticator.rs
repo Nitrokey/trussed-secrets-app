@@ -89,15 +89,38 @@ struct OathVersion {
     patch: u8,
 }
 
+const VERSION: OathVersion = {
+    const fn parse_u8(s: &str) -> u8 {
+        match u8::from_str_radix(s, 10) {
+            Ok(value) => value,
+            Err(_) => {
+                panic!("invalid crate version component");
+            }
+        }
+    }
+
+    let crate_major = parse_u8(env!("CARGO_PKG_VERSION_MAJOR"));
+    let crate_minor = parse_u8(env!("CARGO_PKG_VERSION_MINOR"));
+    let crate_patch = parse_u8(env!("CARGO_PKG_VERSION_PATCH"));
+
+    assert!(
+        crate_major == 0,
+        "Major versions > 0 need a new versioning scheme"
+    );
+
+    OathVersion {
+        // for compatibility with the yubikey protocol
+        major: 4,
+        minor: crate_minor,
+        patch: crate_patch,
+    }
+};
+
 impl Default for OathVersion {
     /// For ykman, 4.2.6 is the first version to support "touch" requirement
     fn default() -> Self {
         // TODO: set this up automatically during the build from the project version
-        OathVersion {
-            major: 4,
-            minor: 13,
-            patch: 0,
-        }
+        VERSION
     }
 }
 
