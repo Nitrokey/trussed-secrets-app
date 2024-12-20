@@ -11,10 +11,14 @@ use core::time::Duration;
 use flexiber::EncodableHeapless;
 use heapless_bytes::Bytes;
 use iso7816::{Data, Status};
-use littlefs2_core::path;
-use trussed::types::Location;
-use trussed::types::{KeyId, Message};
-use trussed::{self, client, syscall, try_syscall};
+use littlefs2_core::{path, PathBuf};
+use trussed_core::types::Location;
+use trussed_core::types::{KeyId, Message};
+use trussed_core::{
+    mechanisms::{Chacha8Poly1305, HmacSha1, HmacSha256, Sha256},
+    CryptoClient, FilesystemClient, UiClient,
+};
+use trussed_core::{syscall, try_syscall};
 
 use crate::calculate::hmac_challenge;
 use crate::command::CredentialData::HmacData;
@@ -30,6 +34,31 @@ use crate::{
 
 #[cfg(feature = "brute-force-delay")]
 use crate::REQUIRED_DELAY_ON_FAILED_VERIFICATION;
+
+/// The requirements for the Trussed client.
+pub trait Client:
+    CryptoClient
+    + FilesystemClient
+    + UiClient
+    + HmacSha1
+    + HmacSha256
+    + Sha256
+    + Chacha8Poly1305
+    + trussed_auth::AuthClient
+{
+}
+
+impl<T> Client for T where
+    T: CryptoClient
+        + FilesystemClient
+        + UiClient
+        + HmacSha1
+        + HmacSha256
+        + Sha256
+        + Chacha8Poly1305
+        + trussed_auth::AuthClient
+{
+}
 
 /// The options for the authenticator app.
 #[derive(Clone, Copy, Debug)]
@@ -203,17 +232,9 @@ impl AnswerToSelect {
     }
 }
 
-impl<T> Authenticator<T>
-where
-    T: client::Client
-        + client::HmacSha1
-        + client::HmacSha256
-        + client::Sha256
-        + client::Chacha8Poly1305
-        + trussed_auth::AuthClient,
-{
-    fn credential_directory() -> trussed::types::PathBuf {
-        trussed::types::PathBuf::from(path!("cred"))
+impl<T: Client> Authenticator<T> {
+    fn credential_directory() -> PathBuf {
+        PathBuf::from(path!("cred"))
     }
 
     /// Create new Authenticator instance
@@ -399,9 +420,7 @@ where
         for loc in [Location::External, Location::Internal, Location::Volatile] {
             info_now!(":: reset - delete all keys and files in {:?}", loc);
             let _r1 = try_syscall!(self.trussed.delete_all(loc));
-            let _r2 = try_syscall!(self
-                .trussed
-                .remove_dir_all(loc, trussed::types::PathBuf::new()));
+            let _r2 = try_syscall!(self.trussed.remove_dir_all(loc, PathBuf::new()));
             debug_now!(":: reset - results {:?} {:?}", _r1, _r2);
         }
 
@@ -670,7 +689,7 @@ where
         }
     }
 
-    fn filename_for_label(&mut self, label: &[u8]) -> trussed::types::PathBuf {
+    fn filename_for_label(&mut self, label: &[u8]) -> PathBuf {
         let label_hash = syscall!(self.trussed.hash_sha256(label)).hash;
 
         // todo: maybe use a counter instead (put it in our persistent state).
@@ -681,7 +700,7 @@ where
             hex_filename[2 * i + 1] = LOOKUP[(value & 0xF) as usize];
         }
 
-        let filename = trussed::types::PathBuf::try_from(hex_filename.as_ref()).unwrap();
+        let filename = PathBuf::try_from(hex_filename.as_ref()).unwrap();
         let mut path = Self::credential_directory();
         path.push(&filename);
         info_now!("filename: {}", path.as_str_ref_with_trailing_nul());
@@ -1122,7 +1141,7 @@ where
         Ok(())
     }
 
-    fn _debug_trussed_backend_error(_e: trussed::Error, _l: u32) -> Status {
+    fn _debug_trussed_backend_error(_e: trussed_core::Error, _l: u32) -> Status {
         info_now!("Trussed backend error: {:?} (line {:?})", _e, _l);
         Status::UnspecifiedNonpersistentExecutionError
     }
@@ -1227,7 +1246,7 @@ where
         use crate::UP_TIMEOUT_MILLISECONDS;
         let result = syscall!(self.trussed.confirm_user_present(UP_TIMEOUT_MILLISECONDS)).result;
         result.map_err(|err| match err {
-            trussed::types::consent::Error::TimedOut => Status::SecurityStatusNotSatisfied,
+            trussed_core::types::consent::Error::TimedOut => Status::SecurityStatusNotSatisfied,
             _ => Status::UnspecifiedPersistentExecutionError,
         })
     }
@@ -1356,15 +1375,7 @@ impl<T> iso7816::App for Authenticator<T> {
 }
 
 #[cfg(feature = "apdu-dispatch")]
-impl<T, const R: usize> apdu_app::App<R> for Authenticator<T>
-where
-    T: client::Client
-        + client::HmacSha1
-        + client::HmacSha256
-        + client::Sha256
-        + client::Chacha8Poly1305
-        + trussed_auth::AuthClient,
-{
+impl<T: Client, const R: usize> apdu_app::App<R> for Authenticator<T> {
     fn select(
         &mut self,
         _interface: iso7816::Interface,

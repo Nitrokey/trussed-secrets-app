@@ -11,7 +11,7 @@ use crate::command::{
 use crate::oath::{Algorithm, Kind};
 use iso7816::Status;
 use serde::{Deserialize, Serialize};
-use trussed::types::ShortData;
+use trussed_core::types::ShortData;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct CredentialFlat {

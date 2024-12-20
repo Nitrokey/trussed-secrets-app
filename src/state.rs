@@ -7,19 +7,20 @@ use core::convert::TryInto;
 use core::time::Duration;
 
 use iso7816::Status;
-use littlefs2_core::path;
+use littlefs2_core::{path, Path, PathBuf};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use crate::command::EncryptionKeyType;
 use cbor_smol::cbor_deserialize;
 use encrypted_container::EncryptedDataContainer;
-use trussed::client::FilesystemClient;
-use trussed::types::Message;
-use trussed::{
+use trussed_core::mechanisms::Chacha8Poly1305;
+use trussed_core::types::Message;
+use trussed_core::{
     syscall, try_syscall,
-    types::{KeyId, Location, Path, PathBuf},
+    types::{KeyId, Location},
 };
+use trussed_core::{CryptoClient, FilesystemClient};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct State {
@@ -97,7 +98,7 @@ impl State {
         encryption_key_type: Option<EncryptionKeyType>,
     ) -> crate::Result
     where
-        T: trussed::Client + trussed::client::Chacha8Poly1305,
+        T: FilesystemClient + Chacha8Poly1305,
         O: Serialize,
     {
         let encryption_key = self
@@ -127,7 +128,7 @@ impl State {
     fn get_encryption_key_from_state(
         &mut self,
         encryption_key_type: Option<EncryptionKeyType>,
-    ) -> trussed::error::Result<KeyId> {
+    ) -> trussed_core::Result<KeyId> {
         // Try to read cached field (should not be empty if unlocked)
         let key = match encryption_key_type.unwrap_or(EncryptionKeyType::Hardware) {
             EncryptionKeyType::Hardware => self.runtime.encryption_key_hardware,
@@ -139,7 +140,7 @@ impl State {
                 encryption_key_type
             );
         }
-        key.ok_or(trussed::Error::NoSuchKey)
+        key.ok_or(trussed_core::Error::NoSuchKey)
     }
 
     pub fn decrypt_content<T, O>(
@@ -148,7 +149,7 @@ impl State {
         ser_encrypted: Message,
     ) -> (encrypted_container::Result<O>, Option<EncryptionKeyType>)
     where
-        T: trussed::Client + trussed::client::Chacha8Poly1305,
+        T: Chacha8Poly1305,
         O: DeserializeOwned,
     {
         // We do not know what key was used for encryption
@@ -194,9 +195,9 @@ impl State {
         &mut self,
         trussed: &mut T,
         filename: PathBuf,
-    ) -> trussed::error::Result<O>
+    ) -> trussed_core::Result<O>
     where
-        T: trussed::Client + trussed::client::Chacha8Poly1305,
+        T: FilesystemClient + Chacha8Poly1305,
         O: DeserializeOwned,
     {
         let ser_encrypted = try_syscall!(trussed.read_file(self.location, filename))?.data;
@@ -213,7 +214,7 @@ impl State {
         f: impl FnOnce(&mut T, &Persistent) -> X,
     ) -> X
     where
-        T: trussed::Client + trussed::client::Chacha8Poly1305,
+        T: CryptoClient + FilesystemClient,
     {
         let state = self.get_persistent_or_default(trussed);
 
@@ -227,7 +228,10 @@ impl State {
         f(trussed, &state)
     }
 
-    fn get_persistent_or_default(&self, trussed: &mut impl trussed::Client) -> Persistent {
+    fn get_persistent_or_default<C: CryptoClient + FilesystemClient>(
+        &self,
+        trussed: &mut C,
+    ) -> Persistent {
         // 1. If there is serialized, persistent state (i.e., the try_syscall! to `read_file` does
         //    not fail), then assume it is valid and deserialize it. If the reading fails, assume
         //    that this is the first run, and set defaults.

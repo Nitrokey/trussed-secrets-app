@@ -3,22 +3,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-use crate::Authenticator;
+use crate::{authenticator::Client, Authenticator};
 use ctaphid_dispatch::app::{self, Command as HidCommand, Message};
 use ctaphid_dispatch::command::VendorCommand;
 use iso7816::Status;
-use trussed::{client, interrupt::InterruptFlag};
+use trussed_core::InterruptFlag;
 pub const OTP_CCID: VendorCommand = VendorCommand::H70;
 
-impl<T> app::App<'static> for Authenticator<T>
-where
-    T: trussed::Client
-        + client::HmacSha1
-        + client::HmacSha256
-        + client::Sha256
-        + client::Chacha8Poly1305
-        + trussed_auth::AuthClient,
-{
+impl<T: Client> app::App<'static> for Authenticator<T> {
     fn commands(&self) -> &'static [HidCommand] {
         &[HidCommand::Vendor(OTP_CCID)]
     }

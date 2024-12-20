@@ -8,15 +8,17 @@ use iso7816::Status;
 
 use crate::oath;
 use crate::Result;
-use trussed::types::Signature;
-use trussed::{
-    client, try_syscall,
+use trussed_core::types::Signature;
+use trussed_core::{
+    mechanisms::{HmacSha1, HmacSha256},
+    try_syscall,
     types::{KeyId, Location},
+    CryptoClient,
 };
 
 fn with_key<T, F, O>(trussed: &mut T, key: &[u8], f: F) -> Result<O>
 where
-    T: client::Client,
+    T: CryptoClient,
     F: FnOnce(&mut T, KeyId) -> O,
 {
     let injected = try_syscall!(trussed.unsafe_inject_shared_key(key, Location::Volatile,))
@@ -40,7 +42,7 @@ pub fn calculate<T>(
     key: &[u8],
 ) -> Result<[u8; 4]>
 where
-    T: client::Client + client::HmacSha1 + client::HmacSha256 + client::Sha256,
+    T: HmacSha1 + HmacSha256,
 {
     with_key(trussed, key, |trussed, key| {
         use oath::Algorithm::*;
@@ -71,7 +73,7 @@ pub fn hmac_challenge<T>(
     key: &[u8],
 ) -> Result<Signature>
 where
-    T: client::Client + client::HmacSha1,
+    T: HmacSha1,
 {
     with_key(trussed, key, |trussed, key| {
         use oath::Algorithm::*;
