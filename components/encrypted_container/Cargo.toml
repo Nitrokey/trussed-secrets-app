@@ -11,7 +11,7 @@ description = "Universal AEAD Encrypted Container, using CBOR and Chacha8Poly130
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-trussed = { version = "0.1" }
+trussed-core = { version = "0.1.0-rc.1", features = ["chacha8-poly1305", "crypto-client"] }
 heapless = "0.7"
 heapless-bytes = "0.3"
 serde = { version = "1", default-features = false }

@@ -3,22 +3,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-use crate::Authenticator;
-use ctaphid_dispatch::app::{self, Command as HidCommand, Message};
-use ctaphid_dispatch::command::VendorCommand;
+use crate::{authenticator::Client, Authenticator};
+use ctaphid_app::{App, Command as HidCommand, Error, VendorCommand};
+use heapless_bytes::Bytes;
 use iso7816::Status;
-use trussed::{client, interrupt::InterruptFlag};
+use trussed_core::InterruptFlag;
 pub const OTP_CCID: VendorCommand = VendorCommand::H70;
 
-impl<T> app::App<'static> for Authenticator<T>
-where
-    T: trussed::Client
-        + client::HmacSha1
-        + client::HmacSha256
-        + client::Sha256
-        + client::Chacha8Poly1305
-        + trussed_auth::AuthClient,
-{
+impl<T: Client, const N: usize> App<'static, N> for Authenticator<T> {
     fn commands(&self) -> &'static [HidCommand] {
         &[HidCommand::Vendor(OTP_CCID)]
     }
@@ -26,20 +18,18 @@ where
     fn call(
         &mut self,
         command: HidCommand,
-        input_data: &Message,
-        response: &mut Message,
-    ) -> app::AppResult {
+        input_data: &[u8],
+        response: &mut Bytes<N>,
+    ) -> Result<(), Error> {
         match command {
             HidCommand::Vendor(OTP_CCID) => {
                 let arr: [u8; 2] = Status::Success.into();
                 response.extend(arr);
-                let ctap_to_iso7816_command = iso7816::command::CommandView::try_from(
-                    input_data.as_slice(),
-                )
-                .map_err(|_e| {
+                let ctap_to_iso7816_command = iso7816::command::CommandView::try_from(input_data)
+                    .map_err(|_e| {
                     response.clear();
                     info_now!("ISO conversion error: {:?}", _e);
-                    app::Error::InvalidLength
+                    Error::InvalidLength
                 })?;
                 let res = self.respond(ctap_to_iso7816_command, response);
 
@@ -59,7 +49,7 @@ where
                 }
             }
             _ => {
-                return Err(app::Error::InvalidCommand);
+                return Err(Error::InvalidCommand);
             }
         }
         Ok(())
