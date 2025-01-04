@@ -9,7 +9,7 @@ description = "Secrets App - a Trussed app to manage OTP and Password Safe featu
 
 [dependencies]
 apdu-app = { version = "0.1",  optional = true }
-ctaphid-dispatch = { version = "0.1", optional = true }
+ctaphid-app = { version = "0.1", optional = true }
 cbor-smol = "0.5"
 delog = "0.1.6"
 flexiber = { version = "0.1.0", features = ["derive", "heapless"] }
@@ -34,6 +34,7 @@ trussed = { version = "0.1", default-features = false, features = ["clients-3"] 
 default = ["apdu-dispatch"]
 devel = ["apdu-dispatch", "log-all", "delog/std-log", "devel-counters"]
 apdu-dispatch = ["dep:apdu-app"]
+ctaphid-dispatch = ["dep:ctaphid-app"]
 
 # Count accesses to the read-only and read-write persistence storage
 devel-counters = []
@@ -55,7 +56,7 @@ log-warn = []
 log-error = []
 
 [patch.crates-io]
-ctaphid-dispatch = { git = "https://github.com/Nitrokey/ctaphid-dispatch", branch = "trussed-core" }
+ctaphid-app = { git = "https://github.com/trussed-dev/ctaphid-dispatch", branch = "trait" }
 flexiber = { git = "https://github.com/Nitrokey/flexiber", tag = "0.1.1.nitrokey" }
 trussed = { git = "https://github.com/trussed-dev/trussed", rev = "8a9bb9d79e40c2dcf026cf611302109f776bec83" }
 trussed-core = { git = "https://github.com/trussed-dev/trussed", rev = "8a9bb9d79e40c2dcf026cf611302109f776bec83" }
