@@ -5,7 +5,7 @@
 
 use crate::{authenticator::Client, Authenticator};
 use ctaphid_app::{App, Command as HidCommand, Error, VendorCommand};
-use heapless::Vec;
+use heapless_bytes::Bytes;
 use iso7816::Status;
 use trussed_core::InterruptFlag;
 pub const OTP_CCID: VendorCommand = VendorCommand::H70;
@@ -19,7 +19,7 @@ impl<T: Client, const N: usize> App<'static, N> for Authenticator<T> {
         &mut self,
         command: HidCommand,
         input_data: &[u8],
-        response: &mut Vec<u8, N>,
+        response: &mut Bytes<N>,
     ) -> Result<(), Error> {
         match command {
             HidCommand::Vendor(OTP_CCID) => {

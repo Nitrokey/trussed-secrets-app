@@ -56,7 +56,7 @@ log-warn = []
 log-error = []
 
 [patch.crates-io]
-ctaphid-app = { git = "https://github.com/trussed-dev/ctaphid-dispatch", branch = "trait" }
+ctaphid-app = { git = "https://github.com/trussed-dev/ctaphid-dispatch", branch = "heapless-bytes" }
 flexiber = { git = "https://github.com/Nitrokey/flexiber", tag = "0.1.1.nitrokey" }
 trussed = { git = "https://github.com/trussed-dev/trussed", rev = "8a9bb9d79e40c2dcf026cf611302109f776bec83" }
 trussed-core = { git = "https://github.com/trussed-dev/trussed", rev = "8a9bb9d79e40c2dcf026cf611302109f776bec83" }
