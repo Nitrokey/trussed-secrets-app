@@ -9,7 +9,7 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-apdu-dispatch = { version = "0.1.2",  optional = true }
+apdu-dispatch = { version = "0.3",  optional = true }
 flexiber = { version = "0.1.0", features = ["derive", "heapless"] }
 heapless = "0.7"
 heapless-bytes = "0.3"
@@ -17,13 +17,13 @@ hex-literal = "0.3"
 iso7816 = "0.1"
 serde = { version = "1", default-features = false }
 trussed = { version = "0.1.0", features = ["virt", "verbose-tests"] }
-ctaphid-dispatch = { version = "0.1", optional = true }
+ctaphid-dispatch = { version = "0.2", optional = true }
 clap = { version = "3.0.0", features = ["cargo", "derive"] }
 clap-num = "1.0.0"
 pretty_env_logger = "0.4.0"
 
-# extension
-trussed-auth = "0.3.0"
+trussed-auth = "0.4"
+trussed-auth-backend = "0.1"
 
 
 [dependencies.secrets-app]
@@ -54,8 +54,6 @@ doc = false
 
 
 [patch.crates-io]
-apdu-dispatch = { git = "https://github.com/trussed-dev/apdu-dispatch.git", rev = "915fc237103fcecc29d0f0b73391f19abf6576de" }
-ctaphid-dispatch = { git = "https://github.com/Nitrokey/ctaphid-dispatch", tag = "v0.1.1-nitrokey.2" }
 trussed = { git = "https://github.com/trussed-dev/trussed.git", rev = "6bba8fde36d05c0227769eb63345744e87d84b2b" }
-trussed-auth = { git = "https://github.com/trussed-dev/trussed-auth", rev = "fc53539536d7658c45a492585041742d8cdc45d0" }
+trussed-auth-backend = { git = "https://github.com/trussed-dev/trussed-auth.git", tag = "v0.4.0" }
 

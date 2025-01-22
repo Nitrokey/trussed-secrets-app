@@ -25,7 +25,7 @@ block-padding = "0.3.3"
 bitflags = "2.3.1"
 
 # extension
-trussed-auth = "0.3.0"
+trussed-auth = "0.4"
 
 [dev-dependencies]
 trussed = { version = "0.1", default-features = false, features = ["clients-3"] }
@@ -57,4 +57,3 @@ log-error = []
 
 [patch.crates-io]
 trussed = { git = "https://github.com/trussed-dev/trussed.git", rev = "6bba8fde36d05c0227769eb63345744e87d84b2b" }
-trussed-auth = { git = "https://github.com/trussed-dev/trussed-auth", rev = "fc53539536d7658c45a492585041742d8cdc45d0" }
