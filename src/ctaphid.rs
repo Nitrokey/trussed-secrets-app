@@ -5,12 +5,11 @@
 
 use crate::{authenticator::Client, Authenticator};
 use ctaphid_app::{App, Command as HidCommand, Error, VendorCommand};
-use heapless_bytes::Bytes;
 use iso7816::Status;
 use trussed_core::InterruptFlag;
 pub const OTP_CCID: VendorCommand = VendorCommand::H70;
 
-impl<T: Client, const N: usize> App<'static, N> for Authenticator<T> {
+impl<T: Client> App<'static> for Authenticator<T> {
     fn commands(&self) -> &'static [HidCommand] {
         &[HidCommand::Vendor(OTP_CCID)]
     }
@@ -19,19 +18,19 @@ impl<T: Client, const N: usize> App<'static, N> for Authenticator<T> {
         &mut self,
         command: HidCommand,
         input_data: &[u8],
-        response: &mut Bytes<N>,
+        response: &mut heapless_bytes::BytesView,
     ) -> Result<(), Error> {
         match command {
             HidCommand::Vendor(OTP_CCID) => {
                 let arr: [u8; 2] = Status::Success.into();
-                response.extend(arr);
+                response.try_extend(arr).unwrap();
                 let ctap_to_iso7816_command = iso7816::command::CommandView::try_from(input_data)
                     .map_err(|_e| {
                     response.clear();
                     info_now!("ISO conversion error: {:?}", _e);
                     Error::InvalidLength
                 })?;
-                let res = self.respond(ctap_to_iso7816_command, response);
+                let res = self.respond(ctap_to_iso7816_command, response.as_mut());
 
                 match res {
                     Ok(_) => return Ok(()),
@@ -44,7 +43,7 @@ impl<T: Client, const N: usize> App<'static, N> for Authenticator<T> {
                         info_now!("OTP command execution error: {:?}", e);
                         let arr: [u8; 2] = e.into();
                         response.clear();
-                        response.extend(arr);
+                        response.try_extend(arr).unwrap();
                     }
                 }
             }

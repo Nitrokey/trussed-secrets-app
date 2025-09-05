@@ -2,13 +2,13 @@
 //
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-use cbor_smol::{cbor_deserialize, cbor_serialize};
+use cbor_smol::{cbor_deserialize, cbor_serialize_to};
 use heapless_bytes::Bytes;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use trussed_core::{
-    try_syscall,
     mechanisms::Chacha8Poly1305,
+    try_syscall,
     types::{KeyId, Message},
 };
 
@@ -81,6 +81,12 @@ use crate::error::Result;
 type ContainerTag = Bytes<16>;
 type ContainerNonce = Bytes<12>;
 
+pub fn cbor_serialize_message<T: ?Sized + serde::Serialize>(value: &T) -> Result<Message> {
+    let mut writer = Message::new();
+    cbor_serialize_to(value, &mut writer).map_err(|_| Error::ObjectSerializationError)?;
+    Ok(writer)
+}
+
 impl TryFrom<&[u8]> for EncryptedDataContainer {
     type Error = Error;
 
@@ -95,11 +101,7 @@ impl TryFrom<EncryptedDataContainer> for Message {
 
     /// Try to serialize EncryptedDataContainer to Bytes
     fn try_from(value: EncryptedDataContainer) -> Result<Self> {
-        Message::try_from(|buf| {
-            cbor_serialize(&value, buf)
-                .map(|s| s.len())
-                .map_err(|_| Error::ObjectSerializationError)
-        })
+        cbor_serialize_message(&value)
     }
 }
 
@@ -131,12 +133,7 @@ impl EncryptedDataContainer {
         T: Chacha8Poly1305,
         O: Serialize,
     {
-        let message = Message::try_from(|buf| {
-            cbor_serialize(&obj, buf)
-                .map(|s| s.len())
-                .map_err(|_| Error::ObjectSerializationError)
-        })
-        .map_err(|_| Error::ObjectSerializationError)?;
+        let message = cbor_serialize_message(obj)?;
         debug_now!("Plaintext size: {}", message.len());
         Self::encrypt_message(trussed, &message, associated_data, encryption_key)
     }
@@ -174,8 +171,8 @@ impl EncryptedDataContainer {
 
         let encrypted_serialized_credential = EncryptedDataContainer {
             data: encryption_results.ciphertext,
-            nonce: encryption_results.nonce.try_convert_into().unwrap(), // should always be 12 bytes
-            tag: encryption_results.tag.try_convert_into().unwrap(), // should always be 16 bytes
+            nonce: (&*encryption_results.nonce).try_into().unwrap(), // should always be 12 bytes
+            tag: (&*encryption_results.tag).try_into().unwrap(),     // should always be 16 bytes
         };
         Ok(encrypted_serialized_credential)
     }

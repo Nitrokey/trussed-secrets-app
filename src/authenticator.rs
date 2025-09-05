@@ -9,8 +9,9 @@ use core::convert::TryInto;
 use core::time::Duration;
 
 use flexiber::EncodableHeapless;
+use heapless::VecView;
 use heapless_bytes::Bytes;
-use iso7816::{Data, Status};
+use iso7816::Status;
 use littlefs2_core::{path, PathBuf};
 use trussed_core::types::Location;
 use trussed_core::types::{KeyId, Message};
@@ -18,7 +19,7 @@ use trussed_core::{
     mechanisms::{Chacha8Poly1305, HmacSha1, HmacSha256, Sha256},
     CryptoClient, FilesystemClient, UiClient,
 };
-use trussed_core::{syscall, try_syscall};
+use trussed_core::{syscall, try_syscall, ManagementClient};
 
 use crate::calculate::hmac_challenge;
 use crate::command::CredentialData::HmacData;
@@ -44,6 +45,7 @@ pub trait Client:
     + HmacSha256
     + Sha256
     + Chacha8Poly1305
+    + ManagementClient
     + trussed_auth::AuthClient
 {
 }
@@ -56,6 +58,7 @@ impl<T> Client for T where
         + HmacSha256
         + Sha256
         + Chacha8Poly1305
+        + ManagementClient
         + trussed_auth::AuthClient
 {
 }
@@ -256,10 +259,10 @@ impl<T: Client> Authenticator<T> {
     }
 
     /// Respond to the iso7816 encoded request
-    pub fn respond<const R: usize>(
+    pub fn respond(
         &mut self,
         command: iso7816::command::CommandView<'_>,
-        reply: &mut Data<R>,
+        reply: &mut VecView<u8>,
     ) -> Result {
         let client_authorized_before = self.state.runtime.client_authorized;
         self.state.runtime.client_newly_authorized = false;
@@ -282,10 +285,10 @@ impl<T: Client> Authenticator<T> {
         result
     }
 
-    fn inner_respond<const R: usize>(
+    fn inner_respond(
         &mut self,
         command: iso7816::command::CommandView<'_>,
-        reply: &mut Data<R>,
+        reply: &mut VecView<u8>,
     ) -> Result {
         let class = command.class();
         ensure(
@@ -358,11 +361,7 @@ impl<T: Client> Authenticator<T> {
         result
     }
 
-    fn select<const R: usize>(
-        &mut self,
-        _select: command::Select<'_>,
-        reply: &mut Data<R>,
-    ) -> Result {
+    fn select(&mut self, _select: command::Select<'_>, reply: &mut VecView<u8>) -> Result {
         self.state.runtime.challenge = syscall!(self.trussed.random_bytes(8))
             .bytes
             .as_ref()
@@ -460,9 +459,9 @@ impl<T: Client> Authenticator<T> {
         Ok(())
     }
 
-    fn try_to_serialize_credential_for_list<const R: usize>(
+    fn try_to_serialize_credential_for_list(
         credential: &CredentialFlat,
-        reply: &mut Data<R>,
+        reply: &mut VecView<u8>,
         request_data: ListCredentials,
     ) -> core::result::Result<(), u8> {
         match request_data.version {
@@ -509,9 +508,9 @@ impl<T: Client> Authenticator<T> {
     }
 
     /// The YK5 can store a Grande Totale of 32 OATH credentials.
-    fn list_credentials<const R: usize>(
+    fn list_credentials(
         &mut self,
-        reply: &mut Data<R>,
+        reply: &mut VecView<u8>,
         file_index: Option<usize>,
         request_data: ListCredentials,
     ) -> Result {
@@ -603,7 +602,7 @@ impl<T: Client> Authenticator<T> {
         Ok(())
     }
 
-    fn send_remaining<const R: usize>(&mut self, reply: &mut Data<{ R }>) -> Result {
+    fn send_remaining(&mut self, reply: &mut VecView<u8>) -> Result {
         let file_index = if let Some(CommandState::ListCredentials(s_file_index, _)) =
             self.state.runtime.previously
         {
@@ -725,10 +724,10 @@ impl<T: Client> Authenticator<T> {
     //       5A D0 A7 CA <- dynamically truncated HMAC
     // 90 00
     #[cfg(feature = "calculate-all")]
-    fn calculate_all<const R: usize>(
+    fn calculate_all(
         &mut self,
         calculate_all: command::CalculateAll<'_>,
-        reply: &mut Data<R>,
+        reply: &mut VecView<u8>,
     ) -> Result {
         if !self.state.runtime.client_authorized {
             return Err(Status::ConditionsOfUseNotSatisfied);
@@ -742,7 +741,7 @@ impl<T: Client> Authenticator<T> {
         .data;
         let mut maybe_credential: Option<CredentialFlat> = match maybe_credential_enc {
             None => None,
-            Some(c) => self.state.decrypt_content(&mut self.trussed, c).ok(),
+            Some(c) => self.load_credential_from_message(Some(c)),
         };
 
         while let Some(credential) = maybe_credential {
@@ -771,7 +770,7 @@ impl<T: Client> Authenticator<T> {
             // check if there's more
             maybe_credential = match syscall!(self.trussed.read_dir_files_next()).data {
                 None => None,
-                Some(c) => self.state.decrypt_content(&mut self.trussed, c).ok(),
+                Some(c) => self.load_credential_from_message(Some(c)),
             };
         }
 
@@ -779,9 +778,9 @@ impl<T: Client> Authenticator<T> {
         Ok(())
     }
 
-    fn try_to_serialize_credential_for_get_credential<const R: usize>(
+    fn try_to_serialize_credential_for_get_credential(
         credential: CredentialFlat,
-        reply: &mut Data<R>,
+        reply: &mut VecView<u8>,
     ) -> core::result::Result<(), u8> {
         reply.push(oath::Tag::Property as u8)?;
         reply.push(1)?;
@@ -822,10 +821,10 @@ impl<T: Client> Authenticator<T> {
     ///         or on conversion/serialization error
     ///     - NotEnoughMemory, if new file cannot be written
     ///     - SecurityStatusNotSatisfied, if the encryption key cannot be fetched
-    fn update_credential<const R: usize>(
+    fn update_credential(
         &mut self,
         update_req: command::UpdateCredential<'_>,
-        _reply: &mut Data<R>,
+        _reply: &mut VecView<u8>,
     ) -> Result {
         // DESIGN (see design.md): Get operation confirmation from user before proceeding
         self.user_present()?;
@@ -868,10 +867,10 @@ impl<T: Client> Authenticator<T> {
         Ok(())
     }
 
-    fn get_credential<const R: usize>(
+    fn get_credential(
         &mut self,
         get_credential_req: command::GetCredential<'_>,
-        reply: &mut Data<R>,
+        reply: &mut VecView<u8>,
     ) -> Result {
         let credential = self
             .load_credential(get_credential_req.label)
@@ -895,11 +894,7 @@ impl<T: Client> Authenticator<T> {
         Ok(())
     }
 
-    fn calculate<const R: usize>(
-        &mut self,
-        calculate: command::Calculate<'_>,
-        reply: &mut Data<R>,
-    ) -> Result {
+    fn calculate(&mut self, calculate: command::Calculate<'_>, reply: &mut VecView<u8>) -> Result {
         // info_now!("recv {:?}", &calculate);
 
         let credential = self
@@ -961,7 +956,7 @@ impl<T: Client> Authenticator<T> {
     /// - code would match, and the code matches counter without offset - the counter will be incremented by 1.
     ///
     /// Device will stop verifying the HOTP codes in case, when the difference between the host and on-device counters will be greater or equal to 10.
-    fn verify_code<const R: usize>(&mut self, args: VerifyCode, reply: &mut Data<{ R }>) -> Result {
+    fn verify_code(&mut self, args: VerifyCode, reply: &mut VecView<u8>) -> Result {
         const COUNTER_WINDOW_SIZE: u32 = 9;
 
         #[cfg(feature = "brute-force-delay")]
@@ -1114,7 +1109,7 @@ impl<T: Client> Authenticator<T> {
     fn _extension_check_pin(&mut self, password: &[u8]) -> Result {
         let reply = try_syscall!(self.trussed.check_pin(
             BACKEND_USER_PIN_ID,
-            Bytes::from_slice(password).map_err(|_| Status::IncorrectDataParameter)?
+            Bytes::try_from(password).map_err(|_| Status::IncorrectDataParameter)?
         ))
         .map_err(|_| Status::SecurityStatusNotSatisfied)?;
         if !(reply.success) {
@@ -1127,7 +1122,7 @@ impl<T: Client> Authenticator<T> {
     fn _extension_get_hardware_key(&mut self) -> Result<KeyId> {
         let reply = try_syscall!(self
             .trussed
-            .get_application_key(Message::from_slice("default secrets key".as_ref()).unwrap()))
+            .get_application_key(Message::try_from("default secrets key".as_bytes()).unwrap()))
         .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
         Ok(reply.key)
     }
@@ -1135,7 +1130,7 @@ impl<T: Client> Authenticator<T> {
     fn _extension_set_pin(&mut self, password: &[u8]) -> Result {
         try_syscall!(self.trussed.set_pin(
             BACKEND_USER_PIN_ID,
-            Bytes::from_slice(password).map_err(|_| Status::IncorrectDataParameter)?,
+            Bytes::try_from(password).map_err(|_| Status::IncorrectDataParameter)?,
             Some(ATTEMPT_COUNTER_DEFAULT_RETRIES),
             true
         ))
@@ -1151,8 +1146,8 @@ impl<T: Client> Authenticator<T> {
     fn _extension_change_pin(&mut self, password: &[u8], new_password: &[u8]) -> Result {
         let r = try_syscall!(self.trussed.change_pin(
             BACKEND_USER_PIN_ID,
-            Bytes::from_slice(password).map_err(|_| Status::IncorrectDataParameter)?,
-            Bytes::from_slice(new_password).map_err(|_| Status::IncorrectDataParameter)?,
+            Bytes::try_from(password).map_err(|_| Status::IncorrectDataParameter)?,
+            Bytes::try_from(new_password).map_err(|_| Status::IncorrectDataParameter)?,
         ))
         .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
         if !r.success {
@@ -1169,7 +1164,7 @@ impl<T: Client> Authenticator<T> {
     fn _extension_get_key_for_pin(&mut self, password: &[u8]) -> Result<KeyId> {
         let reply = try_syscall!(self.trussed.get_pin_key(
             BACKEND_USER_PIN_ID,
-            Bytes::from_slice(password).map_err(|_| Status::IncorrectDataParameter)?
+            Bytes::try_from(password).map_err(|_| Status::IncorrectDataParameter)?
         ))
         .map_err(|e| Self::_debug_trussed_backend_error(e, line!()))?;
         reply.result.ok_or(Status::VerificationFailed)
@@ -1181,10 +1176,10 @@ impl<T: Client> Authenticator<T> {
         Ok(r.has_pin)
     }
 
-    fn verify_pin<const R: usize>(
+    fn verify_pin(
         &mut self,
         verify_pin: command::VerifyPin<'_>,
-        _reply: &mut Data<R>,
+        _reply: &mut VecView<u8>,
     ) -> Result {
         if !self._extension_is_pin_set()? {
             return Err(Status::SecurityStatusNotSatisfied);
@@ -1204,11 +1199,7 @@ impl<T: Client> Authenticator<T> {
         Ok(())
     }
 
-    fn set_pin<const R: usize>(
-        &mut self,
-        set_pin: command::SetPin<'_>,
-        _reply: &mut Data<R>,
-    ) -> Result {
+    fn set_pin(&mut self, set_pin: command::SetPin<'_>, _reply: &mut VecView<u8>) -> Result {
         if self._extension_is_pin_set()? {
             return Err(Status::SecurityStatusNotSatisfied);
         }
@@ -1223,10 +1214,10 @@ impl<T: Client> Authenticator<T> {
         Ok(())
     }
 
-    fn change_pin<const R: usize>(
+    fn change_pin(
         &mut self,
         change_pin: command::ChangePin<'_>,
-        _reply: &mut Data<R>,
+        _reply: &mut VecView<u8>,
     ) -> Result {
         if !self._extension_is_pin_set()? {
             return Err(Status::SecurityStatusNotSatisfied);
@@ -1304,7 +1295,7 @@ impl<T: Client> Authenticator<T> {
         return Ok(());
     }
 
-    fn yk_hmac<const R: usize>(&mut self, req: YkGetHmac, reply: &mut Data<{ R }>) -> Result {
+    fn yk_hmac(&mut self, req: YkGetHmac, reply: &mut VecView<u8>) -> Result {
         // Get HMAC slot command
         let credential = self
             .load_credential(req.get_credential_label()?)
@@ -1322,7 +1313,7 @@ impl<T: Client> Authenticator<T> {
         }
     }
 
-    fn yk_status<const R: usize>(&self, reply: &mut Data<{ R }>) -> Result {
+    fn yk_status(&self, reply: &mut VecView<u8>) -> Result {
         // Get 6 bytes status; 3 bytes version, 3 bytes other data
         // TODO Discuss, should this be application or runner firmware version
         let v = OathVersion::default();
@@ -1340,7 +1331,7 @@ impl<T: Client> Authenticator<T> {
         Ok(())
     }
 
-    fn yk_serial<const R: usize>(&self, reply: &mut Data<{ R }>) -> Result {
+    fn yk_serial(&self, reply: &mut VecView<u8>) -> Result {
         // Get 4-byte serial
         reply
             .extend_from_slice(&self.options.serial_number)
@@ -1377,12 +1368,12 @@ impl<T> iso7816::App for Authenticator<T> {
 }
 
 #[cfg(feature = "apdu-dispatch")]
-impl<T: Client, const R: usize> apdu_app::App<R> for Authenticator<T> {
+impl<T: Client> apdu_app::App for Authenticator<T> {
     fn select(
         &mut self,
         _interface: iso7816::Interface,
         apdu: iso7816::command::CommandView<'_>,
-        reply: &mut Data<R>,
+        reply: &mut VecView<u8>,
     ) -> Result {
         self.respond(apdu, reply)
     }
@@ -1394,7 +1385,7 @@ impl<T: Client, const R: usize> apdu_app::App<R> for Authenticator<T> {
         &mut self,
         _: iso7816::Interface,
         apdu: iso7816::command::CommandView<'_>,
-        reply: &mut Data<R>,
+        reply: &mut VecView<u8>,
     ) -> Result {
         self.respond(apdu, reply)
     }

@@ -121,7 +121,7 @@ impl CredentialFlat {
     fn get_bytes_if_not_empty_or_none(xo: Option<&[u8]>) -> Result<Option<ShortData>, ()> {
         if let Some(x) = xo {
             if !x.is_empty() {
-                return Ok(Some(ShortData::from_slice(x)?));
+                return Ok(Some(ShortData::try_from(x).map_err(drop)?));
             }
         }
         Ok(None)
@@ -135,7 +135,7 @@ impl CredentialFlat {
         }
     }
 
-    pub fn try_unpack_into_credential(&self) -> Result<command::Credential, Status> {
+    pub fn try_unpack_into_credential(&self) -> Result<command::Credential<'_>, Status> {
         let mut cred = command::Credential {
             label: &self.label,
             touch_required: self.touch_required,
@@ -179,7 +179,7 @@ impl CredentialFlat {
         // Assuming here all the data validation was done on the upstream struct construction.
         // Here we are simply passing it without checking.
         let mut cred = Self {
-            label: ShortData::from_slice(credential.label)?,
+            label: ShortData::try_from(credential.label).map_err(drop)?,
             touch_required: credential.touch_required,
             encryption_key_type: Some(credential.encryption_key_type),
             ..Default::default()
@@ -189,14 +189,14 @@ impl CredentialFlat {
             match cd {
                 CredentialData::OtpData(otp) => {
                     cred.kind = otp.kind;
-                    cred.secret = ShortData::from_slice(otp.secret)?;
+                    cred.secret = ShortData::try_from(otp.secret).map_err(drop)?;
                     cred.digits = otp.digits;
                     cred.algorithm = otp.algorithm;
                     cred.counter = otp.counter;
                 }
                 CredentialData::HmacData(data) => {
                     cred.kind = Kind::Hmac;
-                    cred.secret = ShortData::from_slice(data.secret)?;
+                    cred.secret = ShortData::try_from(data.secret).map_err(drop)?;
                     cred.algorithm = data.algorithm;
                 }
             }
@@ -220,7 +220,7 @@ impl CredentialFlat {
         }
 
         if let Some(new_label) = update_req.new_label {
-            self.label = ShortData::from_slice(new_label).map_err(|_| Status::NotEnoughMemory)?;
+            self.label = ShortData::try_from(new_label).map_err(|_| Status::NotEnoughMemory)?;
         }
         if let Some(p) = update_req.properties {
             self.touch_required = p.touch_required();

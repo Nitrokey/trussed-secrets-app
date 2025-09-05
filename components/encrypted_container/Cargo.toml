@@ -11,15 +11,23 @@ description = "Universal AEAD Encrypted Container, using CBOR and Chacha8Poly130
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-trussed-core = { version = "0.1.0-rc.1", features = ["chacha8-poly1305", "crypto-client"] }
-heapless = "0.7"
-heapless-bytes = "0.3"
+trussed-core = { version = "0.1.0", features = ["chacha8-poly1305", "crypto-client"] }
+heapless = "0.9"
+heapless-bytes = "0.5"
 serde = { version = "1", default-features = false }
-cbor-smol = "0.5"
+cbor-smol = { version = "0.5", features = ["heapless-bytes-v0-5"] }
 delog = "0.1.6"
 
 [features]
 # Use "dangerous_disable_encryption" config switch to disable the actual encryption, and store data instead in plaintext for debug purposes.
+log-all = []
+log-none = []
+log-trace = []
+log-info = []
+log-debug = []
+log-warn = []
+log-error = []
+
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(dangerous_disable_encryption)'] }
