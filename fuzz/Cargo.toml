@@ -9,20 +9,20 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-apdu-dispatch = { version = "0.3",  optional = true }
-flexiber = { version = "0.1.0", features = ["derive", "heapless"] }
-heapless = "0.7"
-heapless-bytes = "0.3"
+apdu-dispatch = { version = "0.4",  optional = true }
+flexiber = { version = "0.2.0", features = ["derive", "heapless"] }
+heapless = "0.9"
+heapless-bytes = "0.5"
 hex-literal = "0.3"
 iso7816 = "0.2"
 serde = { version = "1", default-features = false }
 trussed = { version = "0.1.0", features = ["virt", "verbose-tests"] }
-ctaphid-dispatch = { version = "0.2", optional = true }
+ctaphid-dispatch = { version = "0.4", optional = true }
 clap = { version = "3.0.0", features = ["cargo", "derive"] }
 clap-num = "1.0.0"
 pretty_env_logger = "0.4.0"
 
-trussed-auth = "0.4"
+trussed-auth = "0.5"
 trussed-auth-backend = "0.1"
 
 
@@ -54,6 +54,6 @@ doc = false
 
 
 [patch.crates-io]
-trussed = { git = "https://github.com/trussed-dev/trussed.git", rev = "6bba8fde36d05c0227769eb63345744e87d84b2b" }
-trussed-auth-backend = { git = "https://github.com/trussed-dev/trussed-auth.git", tag = "v0.4.0" }
+trussed = { git = "https://github.com/trussed-dev/trussed.git", rev = "0f8df68be879acdde1f8cf428c11e5d29692a47b" }
+trussed-auth-backend = { git = "https://github.com/trussed-dev/trussed-auth.git", tag = "v0.5.0" }
 

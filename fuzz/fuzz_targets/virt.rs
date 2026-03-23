@@ -5,23 +5,22 @@ mod dispatch;
 
 use trussed::{
     types::Bytes,
-    virt::{self, Client, Ram, StoreProvider},
+    virt::{self, Client, StoreConfig},
 };
 
 /// Client type using a dispatcher with the backends required
-pub type VirtClient<S> = Client<S, dispatch::Dispatch>;
+pub type VirtClient<'a> = Client<'a, dispatch::Dispatch>;
 
 /// Run a client using a provided store
-pub fn with_client<S, R, F>(store: S, client_id: &str, f: F) -> R
+pub fn with_client<R, F>(store: StoreConfig, client_id: &str, f: F) -> R
 where
-    F: FnOnce(VirtClient<S>) -> R,
-    S: StoreProvider,
+    F: FnOnce(VirtClient<'_>) -> R,
 {
     #[allow(clippy::unwrap_used)]
     virt::with_platform(store, |platform| {
         platform.run_client_with_backends(
             client_id,
-            dispatch::Dispatch::with_hw_key(Bytes::from_slice(b"some bytes").unwrap()),
+            dispatch::Dispatch::with_hw_key(Bytes::from(b"some bytes")),
             dispatch::BACKENDS,
             f,
         )
@@ -32,7 +31,7 @@ where
 /// using a RAM file storage
 pub fn with_ram_client<R, F>(client_id: &str, f: F) -> R
 where
-    F: FnOnce(VirtClient<Ram>) -> R,
+    F: FnOnce(VirtClient<'_>) -> R,
 {
-    with_client(Ram::default(), client_id, f)
+    with_client(StoreConfig::ram(), client_id, f)
 }

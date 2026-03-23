@@ -12,7 +12,6 @@
 
 - Update dependencies:
   - `cbor-smol` v0.5
-  - `littlefs2` v0.5
   - `trussed-auth` v0.4
 - Replace `apdu-dispatch` and `ctaphid-dispatch` dependencies with `apdu-app` and `ctaphid-app`.
 - Replace `trussed` dependency with `trussed-core`.
