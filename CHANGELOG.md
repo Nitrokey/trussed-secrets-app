@@ -2,7 +2,23 @@
 
 ## [Unreleased](https://github.com/nitrokey/trussed-secrets-app/tree/HEAD)
 
-[Full Changelog](https://github.com/nitrokey/trussed-secrets-app/compare/v0.14.0...HEAD)
+[Full Changelog](https://github.com/nitrokey/trussed-secrets-app/compare/v0.15.0...HEAD)
+
+-
+
+## [0.15.0](https://github.com/nitrokey/trussed-secrets-app/tree/v0.15.0) (2026-03-25)
+
+[Full Changelog](https://github.com/nitrokey/trussed-secrets-app/compare/v0.14.0...v0.15.0)
+
+- Update dependencies:
+  - `apdu-app` v0.2
+  - `cbor-smol` v0.5
+  - `ctaphid-app` v0.2
+  - `flexiber` v0.2
+  - `heapless` v0.9
+  - `heapless-bytes` v0.5
+  - `trussed-auth` v0.5
+  - `trussed-core` v0.2
 
 ## [0.14.0](https://github.com/nitrokey/trussed-secrets-app/tree/v0.14.0) (2025-07-31)
 
@@ -12,6 +28,7 @@
 
 - Update dependencies:
   - `cbor-smol` v0.5
+  - `littlefs2` v0.5
   - `trussed-auth` v0.4
 - Replace `apdu-dispatch` and `ctaphid-dispatch` dependencies with `apdu-app` and `ctaphid-app`.
 - Replace `trussed` dependency with `trussed-core`.
