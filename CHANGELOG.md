@@ -2,9 +2,15 @@
 
 ## [Unreleased](https://github.com/nitrokey/trussed-secrets-app/tree/HEAD)
 
-[Full Changelog](https://github.com/nitrokey/trussed-secrets-app/compare/v0.15.0...HEAD)
+[Full Changelog](https://github.com/nitrokey/trussed-secrets-app/compare/v0.16.0...HEAD)
 
 -
+
+## [0.16.0](https://github.com/nitrokey/trussed-secrets-app/tree/v0.16.0) (2026-08-18)
+
+[Full Changelog](https://github.com/nitrokey/trussed-secrets-app/compare/v0.15.0...v0.16.0)
+
+- Prepare crate for release to crates.io
 
 ## [0.15.0](https://github.com/nitrokey/trussed-secrets-app/tree/v0.15.0) (2026-03-25)
 
