@@ -11,9 +11,7 @@ use littlefs2_core::{path, Path, PathBuf};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use crate::command::EncryptionKeyType;
 use cbor_smol::cbor_deserialize;
-use encrypted_container::EncryptedDataContainer;
 use trussed_core::mechanisms::Chacha8Poly1305;
 use trussed_core::types::Message;
 use trussed_core::{
@@ -21,6 +19,11 @@ use trussed_core::{
     types::{KeyId, Location},
 };
 use trussed_core::{CryptoClient, FilesystemClient};
+
+use crate::{
+    command::EncryptionKeyType,
+    encrypted_container::{self, EncryptedDataContainer},
+};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct State {

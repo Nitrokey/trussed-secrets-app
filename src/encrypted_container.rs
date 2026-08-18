@@ -46,25 +46,11 @@ use trussed_core::{
 /// should be about 256 bytes (the current maximum packet length) + CBOR overhead (field names and map encoding) + encryption overhead (12 bytes nonce + 16 bytes tag).
 /// The extra bytes could be used in the future, when operating on the password-extended credentials.
 ///
-/// Usage example:
-/// ```
-/// # use encrypted_container::EncryptedDataContainer;
-/// # use trussed::Client;
-/// # use serde::Serialize;
-/// # use trussed::client::Chacha8Poly1305;
-/// # use trussed::types::{KeyId, Message};
-/// # use secrets_app::encrypted_container::EncryptedDataContainer;
-/// fn encrypt_unit<O: Serialize, T: Client + Chacha8Poly1305>(trussed: &mut T, obj: &O, ek: KeyId) -> Message {
-///    let data = EncryptedDataContainer::from_obj(trussed, obj, None, ek).unwrap();
-///    let data_serialized: Message = data.try_into().unwrap();
-///    data_serialized
-/// }
-/// ```
 /// Future work and extensions:
 /// - Generalize over serialization method
 /// - Generalize buffer size (currently buffer is based on the Message type)
 /// - Investigate postcard structure extensibility, as a means for smaller overhead for serialization
-#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, serde::Deserialize, Serialize)]
 pub struct EncryptedDataContainer {
     /// The ciphertext. 1024 bytes maximum. Reusing trussed::types::Message.
     #[serde(rename = "D")]
@@ -75,13 +61,10 @@ pub struct EncryptedDataContainer {
     nonce: ContainerNonce,
 }
 
-use crate::error::Error;
-use crate::error::Result;
-
 type ContainerTag = Bytes<16>;
 type ContainerNonce = Bytes<12>;
 
-pub fn cbor_serialize_message<T: ?Sized + serde::Serialize>(value: &T) -> Result<Message> {
+pub fn cbor_serialize_message<T: ?Sized + Serialize>(value: &T) -> Result<Message> {
     let mut writer = Message::new();
     cbor_serialize_to(value, &mut writer).map_err(|_| Error::ObjectSerializationError)?;
     Ok(writer)
@@ -226,5 +209,40 @@ impl EncryptedDataContainer {
         .ok_or(Error::EmptyDecryptedData)?;
 
         Ok(serialized)
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum Error {
+    DeserializationToContainerError,
+    DeserializationToObjectError,
+    ObjectSerializationError,
+    ContainerSerializationError,
+    SerializationBufferTooSmall,
+    FailedEncryption,
+    FailedContainerSerialization,
+    EmptyContainerData,
+    FailedDecryption,
+    EmptyDecryptedData,
+}
+
+pub type Result<T = ()> = core::result::Result<T, Error>;
+
+impl From<Error> for trussed_core::Error {
+    fn from(e: Error) -> Self {
+        match e {
+            Error::DeserializationToContainerError => {
+                trussed_core::Error::InvalidSerializationFormat
+            }
+            Error::DeserializationToObjectError => trussed_core::Error::InvalidSerializationFormat,
+            Error::ObjectSerializationError => trussed_core::Error::InvalidSerializationFormat,
+            Error::ContainerSerializationError => trussed_core::Error::InvalidSerializationFormat,
+            Error::SerializationBufferTooSmall => trussed_core::Error::InternalError,
+            Error::FailedEncryption => trussed_core::Error::InternalError,
+            Error::FailedContainerSerialization => trussed_core::Error::InvalidSerializationFormat,
+            Error::EmptyContainerData => trussed_core::Error::WrongMessageLength,
+            Error::FailedDecryption => trussed_core::Error::InvalidSerializationFormat,
+            Error::EmptyDecryptedData => trussed_core::Error::WrongMessageLength,
+        }
     }
 }
