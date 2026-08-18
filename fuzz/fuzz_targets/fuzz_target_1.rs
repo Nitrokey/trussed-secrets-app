@@ -38,7 +38,7 @@ fn parse(data: &[u8]) -> Vec<&[u8]> {
     res
 }
 
-use trussed::types::Location;
+use trussed_core::types::Location;
 mod virt;
 
 fuzz_target!(|data: &[u8]| {

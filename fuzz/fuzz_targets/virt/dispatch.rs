@@ -1,14 +1,17 @@
 use trussed::{
-    api::{reply, request, Reply, Request},
     backend::{Backend as _, BackendId},
-    error::Error,
     platform::Platform,
     serde_extensions::{ExtensionDispatch, ExtensionId, ExtensionImpl as _},
     service::ServiceResources,
-    types::{Bytes, Context, Location},
+    types::Context,
 };
 use trussed_auth::AuthExtension;
 use trussed_auth_backend::{AuthBackend, AuthContext, FilesystemLayout, MAX_HW_KEY_LEN};
+use trussed_core::{
+    api::{reply, request, Reply, Request},
+    Error,
+    types::{Bytes, Location},
+};
 
 pub const BACKENDS: &[BackendId<Backend>] = &[BackendId::Custom(Backend::Auth), BackendId::Core];
 

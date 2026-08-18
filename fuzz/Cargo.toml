@@ -16,14 +16,15 @@ heapless-bytes = "0.5"
 hex-literal = "0.3"
 iso7816 = "0.2"
 serde = { version = "1", default-features = false }
-trussed = { version = "0.1.0", features = ["virt", "verbose-tests"] }
+trussed = { version = "0.2", features = ["virt", "verbose-tests"] }
+trussed-core = "0.2"
 ctaphid-dispatch = { version = "0.4", optional = true }
 clap = { version = "3.0.0", features = ["cargo", "derive"] }
 clap-num = "1.0.0"
 pretty_env_logger = "0.4.0"
 
 trussed-auth = "0.5"
-trussed-auth-backend = "0.1"
+trussed-auth-backend = "0.2"
 
 
 [dependencies.secrets-app]
@@ -51,9 +52,3 @@ name = "corpus-viewer"
 path = "corpus-viewer/corpus-viewer.rs"
 test = false
 doc = false
-
-
-[patch.crates-io]
-trussed = { git = "https://github.com/trussed-dev/trussed.git", rev = "0f8df68be879acdde1f8cf428c11e5d29692a47b" }
-trussed-auth-backend = { git = "https://github.com/trussed-dev/trussed-auth.git", tag = "v0.5.0" }
-

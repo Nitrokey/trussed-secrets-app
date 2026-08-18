@@ -3,10 +3,8 @@
 
 mod dispatch;
 
-use trussed::{
-    types::Bytes,
-    virt::{self, Client, StoreConfig},
-};
+use trussed::virt::{self, Client, StoreConfig};
+use trussed_core::types::Bytes;
 
 /// Client type using a dispatcher with the backends required
 pub type VirtClient<'a> = Client<'a, dispatch::Dispatch>;
